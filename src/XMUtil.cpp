@@ -345,7 +345,7 @@ double AngleFromPoints(double startx, double starty, double pointx, double point
 }
 
 #if defined(_DEBUG) && defined(wantownmemorytesting)
-#include <boost/unordered_map.hpp>
+#include <unordered_map>
 #include <assert.h>
 #undef new // regular new used in this section
 #undef delete // same for delete
@@ -356,7 +356,7 @@ typedef struct {
    char file[32] ;
 } AllocInfo ;
 
-typedef boost::unordered_map<void*, AllocInfo> MemTrackMap ;
+typedef std::unordered_map<void*, AllocInfo> MemTrackMap ;
 
 MemTrackMap *AllocList = 0 ;
 
