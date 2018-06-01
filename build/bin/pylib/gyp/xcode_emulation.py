@@ -630,9 +630,7 @@ class XcodeSettings(object):
       # TODO: Supporting fat binaries will be annoying.
       self._WarnUnimplemented('ARCHS')
       archs = ['i386']
-    
-    if self._Settings().get('SKIP_ARCH_FLAG') != 'YES':
-      cflags.append('-arch ' + archs[0])
+    cflags.append('-arch ' + archs[0])
 
     if archs[0] in ('i386', 'x86_64'):
       if self._Test('GCC_ENABLE_SSE3_EXTENSIONS', 'YES', default='NO'):
@@ -894,9 +892,7 @@ class XcodeSettings(object):
       # TODO: Supporting fat binaries will be annoying.
       self._WarnUnimplemented('ARCHS')
       archs = ['i386']
-    
-    if self._Settings().get('SKIP_ARCH_FLAG') != 'YES':
-      ldflags.append('-arch ' + archs[0])
+    ldflags.append('-arch ' + archs[0])
 
     # Xcode adds the product directory by default.
     # Rewrite -L. to -L./ to work around http://www.openradar.me/25313838
