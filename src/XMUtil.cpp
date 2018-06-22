@@ -79,10 +79,10 @@ int main(int argc, char *argv[]) {
   int ret = 0;
   Model *m = new Model();
   if (ParseVensimModel(argc, argv, m)) {
-    /*if(m->AnalyzeEquations()) {
+    if(m->AnalyzeEquations()) {
        m->Simulate() ;
        m->OutputComputable(true);
-    }*/
+    }
 
     // mark variable types and potentially convert INTEG equations involving expressions
     // into flows (a single net flow on the first pass though this)
@@ -99,7 +99,9 @@ int main(int argc, char *argv[]) {
     std::vector<std::string> errs;
     m->WriteToXMILE(p.string(), errs);
 
-    BOOST_FOREACH (const std::string &err, errs) { std::cout << err << std::endl; }
+    for (const std::string &err: errs) {
+      std::cout << err << std::endl;
+    }
   }
   delete m;
   CloseUCaseMap();
