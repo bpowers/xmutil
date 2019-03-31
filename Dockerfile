@@ -41,4 +41,4 @@ RUN apk add --no-cache --virtual .build-deps \
 
 COPY --from=builder /src/out/Release/XMUtil /usr/local/bin/xmutil
 
-CMD ["/bin/sh"]
+CMD ["/usr/local/bin/xmutil", "--stdio"]
