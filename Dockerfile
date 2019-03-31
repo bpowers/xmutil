@@ -9,6 +9,7 @@ RUN apk add --no-cache --virtual .build-deps \
 	ninja \
 	gcc \
 	git \
+	boost-thread \
 	boost-dev \
 	python2 \
 	libc-dev \
@@ -24,4 +25,20 @@ COPY . .
 RUN ./configure.sh \
  && ninja -C out/Release
 
-CMD ["nginx", "-g", "daemon off;"]
+FROM alpine:3.9
+
+RUN apk add --no-cache --virtual .build-deps \
+	boost-chrono \
+	boost-date_time \
+	boost-filesystem \
+	boost-iostreams \
+	boost-random \
+	boost-system \
+	boost-thread \
+	libstdc++ \
+	icu \
+	tinyxml2
+
+COPY --from=builder /src/out/Release/XMUtil /usr/local/bin/xmutil
+
+CMD ["/bin/sh"]

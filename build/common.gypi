@@ -185,7 +185,7 @@
                         '-lboost_iostreams',
                         '-lboost_random',
                         '-lboost_system',
-                        '-lboost_thread',
+                        '-lboost_thread-mt',
                         '-ldl',
                         '-licuuc',
                         '-lpthread',
