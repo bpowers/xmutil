@@ -9,9 +9,12 @@ RUN apk add --no-cache --virtual .build-deps \
 	ninja \
 	gcc \
 	git \
+	boost-dev \
+	python2 \
 	libc-dev \
 	libgcc \
 	libstdc++ \
+	icu-dev \
 	tinyxml2-dev
 
 WORKDIR /src
