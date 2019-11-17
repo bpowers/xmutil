@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "XMILEGenerator.h"
 
 #include "../Model.h"
@@ -513,7 +515,7 @@ void XMILEGenerator::generateModel(tinyxml2::XMLElement* element, std::vector<st
 					Symbol* best = parent;
 					if (parent->Subranges() != NULL && static_cast<Variable*>(parent)->Nelm() > entry.size())
 					{
-						BOOST_FOREACH(Symbol* subrange, *parent->Subranges())
+						for (Symbol* subrange: *parent->Subranges())
 						{
 							if (static_cast<Variable*>(subrange)->Nelm() >= entry.size() &&
 								static_cast<Variable*>(subrange)->Nelm() < static_cast<Variable*>(best)->Nelm())
@@ -553,7 +555,6 @@ void XMILEGenerator::generateModel(tinyxml2::XMLElement* element, std::vector<st
 	tinyxml2::XMLElement* views = doc->NewElement("views");
 	this->generateViews(views, variables, errs, ns == NULL);
 	element->InsertEndChild(views);
-
 }
 
 void XMILEGenerator::generateViews(tinyxml2::XMLElement* element, tinyxml2::XMLElement* xvars, std::vector<std::string>& errs, bool mainmodel)
