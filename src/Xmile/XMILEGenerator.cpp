@@ -11,7 +11,7 @@ XMILEGenerator::XMILEGenerator(Model *model) {
   _model = model;
 }
 
-bool XMILEGenerator::Generate(const std::string &path, std::vector<std::string> &errs) {
+bool XMILEGenerator::Generate(FILE *file, std::vector<std::string> &errs) {
   tinyxml2::XMLDocument doc;
 
   tinyxml2::XMLElement *root = doc.NewElement("xmile");
@@ -70,7 +70,7 @@ bool XMILEGenerator::Generate(const std::string &path, std::vector<std::string> 
     root->InsertEndChild(macro);
   }
 
-  tinyxml2::XMLError err = doc.SaveFile(path.c_str());
+  tinyxml2::XMLError err = doc.SaveFile(file);
   if (err != tinyxml2::XML_SUCCESS) {
     if (doc.ErrorStr())
       errs.push_back("TinyXML2 Error: " + std::string(doc.ErrorStr()));
@@ -459,7 +459,7 @@ void XMILEGenerator::generateModel(tinyxml2::XMLElement *element, std::vector<st
                 bool complete = true;
                 std::vector<Symbol *> telms;
                 Equation::GetSubscriptElements(telms, subrange);
-                BOOST_FOREACH (Symbol *elm, entries[i]) {
+                for (Symbol *elm : entries[i]) {
                   if (std::find(telms.begin(), telms.end(), elm) == telms.end()) {
                     complete = false;
                     break;

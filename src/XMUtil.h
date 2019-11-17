@@ -1,6 +1,7 @@
 #ifndef _XMUTIL_XMUTIL_H
 #define _XMUTIL_XMUTIL_H
 
+#include <cstdio>
 #include <string>
 
 #ifdef WIN32
@@ -62,4 +63,5 @@ std::string StringFromDouble(double val);
 std::string SpaceToUnderBar(const std::string &s);
 bool StringMatch(const std::string &f, const std::string &s);  // asciii only;
 double AngleFromPoints(double startx, double starty, double pointx, double pointy, double endx, double endy);
+std::string ReadFile(FILE *file, int &error);
 #endif

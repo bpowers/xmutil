@@ -25,7 +25,7 @@ public:
   VensimParse(Model *model);
   ~VensimParse(void);
   void ReadyFunctions();
-  bool ProcessFile(const std::string &filename);
+  bool ProcessFile(const std::string &filename, const char *contents, size_t contentsLen);
   inline int yylex(void) {
     return mVensimLex.yylex();
   }
@@ -80,7 +80,6 @@ private:
   bool FindNextEq(bool want_comment);
   Model *_model;
   std::string sFilename;
-  boost::iostreams::mapped_file_source mfSource;
   VensimLex mVensimLex;
   VensimParseSyntaxError mSyntaxError;
   SymbolNameSpace *pSymbolNameSpace;

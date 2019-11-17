@@ -329,7 +329,7 @@ bool Model::Simulate(void) {
         e = end->Eval(&info);
     }
   } catch (...) {
-    std::cout << "Error of some sort" << std::endl;
+    std::cerr << "Error of some sort" << std::endl;
     return false;
   }
   return true;
@@ -357,7 +357,7 @@ bool Model::OutputComputable(bool wantshort) {
     printf("------------- rates -----------------\n");
     BOOST_FOREACH (Equation *e, vRateComps) { e->OutputComputable(&info); }
   } catch (...) {
-    std::cout << "Error of some sort" << std::endl;
+    std::cerr << "Error of some sort" << std::endl;
     return false;
   }
   return true;
@@ -564,13 +564,13 @@ std::vector<Variable *> Model::GetVariables(SymbolNameSpace *ns) {
   return vars;
 }
 
-bool Model::WriteToXMILE(const std::string &path, std::vector<std::string> &errs) {
+bool Model::WriteToXMILE(FILE *file, std::vector<std::string> &errs) {
   bool success = true;
 
   // sim specs are different
 
   XMILEGenerator generator(this);
-  success = generator.Generate(path, errs);
+  success = generator.Generate(file, errs);
 
   return success;
 }
