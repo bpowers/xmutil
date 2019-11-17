@@ -238,7 +238,7 @@ bool VensimParse::ProcessFile(const std::string &filename, const char *contents,
       std::cerr << e.str << std::endl;
       std::cerr << "Error at line " << mVensimLex.LineNumber() << " position " << mVensimLex.Position() << " in file "
                 << sFilename << std::endl;
-      std::cerr << ".... skipping the associated variable and looking for the next usable content.";
+      std::cerr << "(skipping the associated variable and looking for the next usable content)" << std::endl;
       pSymbolNameSpace->DeleteAllUnconfirmedAllocations();
       noerr = false;
       if (!FindNextEq(false))
