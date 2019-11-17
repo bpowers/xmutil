@@ -102,7 +102,7 @@ void VensimParse::ReadyFunctions() {
 
     pSymbolNameSpace->ConfirmAllAllocations();
   } catch (...) {
-    std::cout << "Failed to initialize symbol table" << std::endl;
+    std::cerr << "Failed to initialize symbol table" << std::endl;
   }
 }
 Equation *VensimParse::AddEq(LeftHandSide *lhs, Expression *ex, ExpressionList *exl, int tok) {
@@ -200,143 +200,135 @@ static std::string compress_whitespace(const std::string &s) {
   return rval;
 }
 
-bool VensimParse::ProcessFile(const std::string &filename) {
+bool VensimParse::ProcessFile(const std::string &filename, const char *contents, size_t contentsLen) {
   sFilename = filename;
-  try {
-    mfSource.open(filename);
-  } catch (...) {
-    return false;
+
+  bool noerr = true;
+  mVensimLex.Initialize(contents, contentsLen);
+  int endtok = mVensimLex.GetEndToken();
+  // now we call the bison built parser which will call back to VensimLex
+  // for the tokenizing -
+  int rval;
+  do {
+    rval = 0;
+    try {
+      mVensimLex.GetReady();
+      rval = vpyyparse();
+      if (rval == '~') {  // comment follows
+        if (!FindNextEq(true))
+          break;
+      } else if (rval == '|') {
+      } else if (rval == VPTT_groupstar) {
+        printf("%s\n", mVensimLex.CurToken()->c_str());
+        // only change this if a new number
+        std::string group_owner;
+        char c = mVensimLex.CurToken()->at(0);
+        if (_model->Groups().empty() || (_model->Groups().back().sName[0] != c && c >= '0' && c <= '9'))
+          group_owner = *mVensimLex.CurToken();
+        else
+          group_owner = _model->Groups().back().sOwner;
+        { _model->Groups().push_back(ModelGroup(*mVensimLex.CurToken(), group_owner)); }
+      } else if (rval != endtok) {
+        std::cerr << "Unknown terminal token " << rval << std::endl;
+        if (!FindNextEq(false))
+          break;
+      }
+
+    } catch (VensimParseSyntaxError &e) {
+      std::cerr << e.str << std::endl;
+      std::cerr << "Error at line " << mVensimLex.LineNumber() << " position " << mVensimLex.Position() << " in file "
+                << sFilename << std::endl;
+      std::cerr << ".... skipping the associated variable and looking for the next usable content.";
+      pSymbolNameSpace->DeleteAllUnconfirmedAllocations();
+      noerr = false;
+      if (!FindNextEq(false))
+        break;
+
+    } catch (...) {
+      pSymbolNameSpace->DeleteAllUnconfirmedAllocations();
+      noerr = false;
+      if (!FindNextEq(false))
+        break;
+    }
+  } while (rval != endtok);
+  char buf[BUFLEN];  // plenty big for sketch info
+  if (rval == endtok)
+    this->mVensimLex.BufferReadLine(buf, BUFLEN);  // get the marker line
+  while (true) {                                   // read in the sketch information
+    if (strncmp(buf, "\\\\\\---///", 9) != 0)
+      break;
+    this->mVensimLex.ReadLine(buf, BUFLEN);  // version line
+    if (strncmp(buf, "V300 ", 5)) {
+      printf("Unrecognized version - can't read sketch info\n");
+      noerr = false;
+      break;
+    }
+    VensimView *view = new VensimView;
+    VensimViewElements &elements = view->Elements();  // we populate this directly
+
+    _model->AddView(view);
+    // next the title
+    this->mVensimLex.ReadLine(buf, BUFLEN);
+    view->SetTitle(buf +
+                   1);  // skip the star - we can try to name modules with this eventually subject to name collisions
+    this->mVensimLex.ReadLine(buf, BUFLEN);  // default font info - we can try to grab this later
+    view->ReadView(this, buf);               // will return with buf populated at next view
   }
-  if (mfSource.is_open()) {
-    bool noerr = true;
-    mVensimLex.Initialize((const char *)mfSource.data(), mfSource.size());
-    int endtok = mVensimLex.GetEndToken();
-    // now we call the bison built parser which will call back to VensimLex
-    // for the tokenizing -
-    int rval;
-    do {
-      rval = 0;
-      try {
-        mVensimLex.GetReady();
-        rval = vpyyparse();
-        if (rval == '~') {  // comment follows
-          if (!FindNextEq(true))
-            break;
-        } else if (rval == '|') {
-        } else if (rval == VPTT_groupstar) {
-          // printf("%s\n", mVensimLex.CurToken()->c_str());
-          // only change this if a new number
-          std::string group_owner;
-          char c = mVensimLex.CurToken()->at(0);
-          if (_model->Groups().empty() || (_model->Groups().back().sName[0] != c && c >= '0' && c <= '9'))
-            group_owner = *mVensimLex.CurToken();
-          else
-            group_owner = _model->Groups().back().sOwner;
-          { _model->Groups().push_back(ModelGroup(*mVensimLex.CurToken(), group_owner)); }
-        } else if (rval != endtok) {
-          std::cout << "Unknown terminal token " << rval << std::endl;
-          if (!FindNextEq(false))
-            break;
-        }
-
-      } catch (VensimParseSyntaxError &e) {
-        std::cout << e.str << std::endl;
-        std::cout << "Error at line " << mVensimLex.LineNumber() << " position " << mVensimLex.Position() << " in file "
-                  << sFilename << std::endl;
-        std::cout << ".... skipping the associated variable and looking for the next usable content.";
-        pSymbolNameSpace->DeleteAllUnconfirmedAllocations();
-        noerr = false;
-        if (!FindNextEq(false))
-          break;
-
-      } catch (...) {
-        pSymbolNameSpace->DeleteAllUnconfirmedAllocations();
-        noerr = false;
-        if (!FindNextEq(false))
-          break;
-      }
-    } while (rval != endtok);
-    char buf[BUFLEN];  // plenty big for sketch info
-    if (rval == endtok)
-      this->mVensimLex.BufferReadLine(buf, BUFLEN);  // get the marker line
-    while (true) {                                   // read in the sketch information
-      if (strncmp(buf, "\\\\\\---///", 9) != 0)
-        break;
-      this->mVensimLex.ReadLine(buf, BUFLEN);  // version line
-      if (strncmp(buf, "V300 ", 5)) {
-        printf("Unrecognized version - can't read sketch info\n");
-        noerr = false;
-        break;
-      }
-      VensimView *view = new VensimView;
-      VensimViewElements &elements = view->Elements();  // we populate this directly
-
-      _model->AddView(view);
-      // next the title
-      this->mVensimLex.ReadLine(buf, BUFLEN);
-      view->SetTitle(buf +
-                     1);  // skip the star - we can try to name modules with this eventually subject to name collisions
-      this->mVensimLex.ReadLine(buf, BUFLEN);  // default font info - we can try to grab this later
-      view->ReadView(this, buf);               // will return with buf populated at next view
-    }
-    // there may be options at the end
-    if (strncmp(buf, "///---\\\\\\", 9) == 0) {
-      while (this->mVensimLex.ReadLine(buf, BUFLEN))  // looking for settings maker
-      {
-        if (strncmp(buf, ":L\177<%^E!@", 9) == 0) {
-          while (this->mVensimLex.ReadLine(buf, BUFLEN)) {
-            int type;
-            char *curpos = GetIntChar(buf, type, ':');
-            if (type == 15)  // fourth entry is integration type
-            {
-              int im;
-              for (int i = 0; i < 4; i++)
-                curpos = GetInt(curpos, im);
-              Integration_Type it = Integration_Type_EULER;
-              switch (im) {
-              case 0:
-              case 2:
-              default:
-                it = Integration_Type_EULER;
-                break;
-              case 1:
-              case 5:
-                it = Integration_Type_RK4;
-                break;
-              case 3:
-              case 4:
-                it = Integration_Type_RK2;
-                break;
-              }
-              _model->SetIntegrationType(it);
-            } else if (type == 22)  // units equialences
-            {
-              _model->UnitEquivs().push_back(curpos);
+  // there may be options at the end
+  if (strncmp(buf, "///---\\\\\\", 9) == 0) {
+    while (this->mVensimLex.ReadLine(buf, BUFLEN))  // looking for settings maker
+    {
+      if (strncmp(buf, ":L\177<%^E!@", 9) == 0) {
+        while (this->mVensimLex.ReadLine(buf, BUFLEN)) {
+          int type;
+          char *curpos = GetIntChar(buf, type, ':');
+          if (type == 15)  // fourth entry is integration type
+          {
+            int im;
+            for (int i = 0; i < 4; i++)
+              curpos = GetInt(curpos, im);
+            Integration_Type it = Integration_Type_EULER;
+            switch (im) {
+            case 0:
+            case 2:
+            default:
+              it = Integration_Type_EULER;
+              break;
+            case 1:
+            case 5:
+              it = Integration_Type_RK4;
+              break;
+            case 3:
+            case 4:
+              it = Integration_Type_RK2;
+              break;
             }
+            _model->SetIntegrationType(it);
+          } else if (type == 22)  // units equialences
+          {
+            _model->UnitEquivs().push_back(curpos);
           }
-          break;
         }
+        break;
       }
     }
-    mfSource.close();
-    _model->SetMacroFunctions(mMacroFunctions);
+  }
+  _model->SetMacroFunctions(mMacroFunctions);
 
-    if (bLongName) {
-      // try to replace variable names with long names from the documentaion
-      std::vector<Variable *> vars = _model->GetVariables(NULL);  // all symbols that are variables
-      BOOST_FOREACH (Variable *var, vars) {
-        std::string alt = compress_whitespace(var->Comment());
-        if (alt == "Backlog") {
-          bLongName = true;
-        }
-        if (!alt.empty() && alt.size() < 80 && pSymbolNameSpace->Rename(var, alt)) {
-          var->SetAlternateName(alt);
-        }
+  if (bLongName) {
+    // try to replace variable names with long names from the documentaion
+    std::vector<Variable *> vars = _model->GetVariables(NULL);  // all symbols that are variables
+    BOOST_FOREACH (Variable *var, vars) {
+      std::string alt = compress_whitespace(var->Comment());
+      if (alt == "Backlog") {
+        bLongName = true;
+      }
+      if (!alt.empty() && alt.size() < 80 && pSymbolNameSpace->Rename(var, alt)) {
+        var->SetAlternateName(alt);
       }
     }
-    return true;  // got something - try to put something out
-  } else
-    return false;
+  }
+  return true;  // got something - try to put something out
 }
 
 char *VensimParse::GetIntChar(char *s, int &val, char c) {

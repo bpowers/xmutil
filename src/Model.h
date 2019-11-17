@@ -1,5 +1,6 @@
 #ifndef _XMUTIL_MODEL_H
 #define _XMUTIL_MODEL_H
+#include <cstdio>
 #include <vector>
 
 #include "Symbol/Expression.h"
@@ -33,7 +34,7 @@ public:
   bool OutputComputable(bool wantshort);
   bool MarkVariableTypes(SymbolNameSpace *ns);
   void AttachStragglers();  // try to get diagramatic stuff right
-  bool WriteToXMILE(const std::string &filePath, std::vector<std::string> &errs);
+  bool WriteToXMILE(FILE *file, std::vector<std::string> &errs);
 
   double GetConstanValue(const char *var, double defval);
   UnitExpression *GetUnits(const char *var);
