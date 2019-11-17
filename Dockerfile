@@ -25,7 +25,7 @@ COPY . .
 RUN ./configure.sh \
  && ninja -C out/Release
 
-FROM alpine:3.9
+FROM alpine:3
 
 RUN apk add --no-cache --virtual .build-deps \
 	boost-chrono \
