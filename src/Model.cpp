@@ -226,28 +226,28 @@ bool Model::AnalyzeEquations(void) {
   //
 
   // before the passes initialize time, then dt
-  printf("\nInitial time \n");
+  fprintf(stderr, "\nInitial time \n");
   info.iComputeType = CF_initial;
   info.pEquations = &vInitialTimeComps;
   if (!OrderEquations(&info, true))
     return false;
 
-  printf("\nInitial equations \n");
+  fprintf(stderr, "\nInitial equations \n");
   info.iComputeType = CF_initial;
   info.pEquations = &vInitialComps;
   if (!OrderEquations(&info, false))
     return false;
-  printf("\n\nActive equations \n");
+  fprintf(stderr, "\n\nActive equations \n");
   info.iComputeType = CF_active;
   info.pEquations = &vActiveComps;
   if (!OrderEquations(&info, false))
     return false;
-  printf("\n\nUnchanging equations \n");
+  fprintf(stderr, "\n\nUnchanging equations \n");
   info.iComputeType = CF_unchanging;
   info.pEquations = &vUnchangingComps;
   if (!OrderEquations(&info, false))
     return false;
-  printf("\n\nRate equations \n");
+  fprintf(stderr, "\n\nRate equations \n");
   info.iComputeType = CF_rate;
   info.pEquations = &vRateComps;
   if (!OrderEquations(&info, false))
@@ -299,26 +299,30 @@ bool Model::Simulate(void) {
       e = end->Eval(&info);
     else
       e = 100;
-    printf("Time");
-    BOOST_FOREACH (Equation *e, vActiveComps) { printf("\t%s", e->GetVariable()->GetName().c_str()); };
-    BOOST_FOREACH (Equation *e, vRateComps) { printf("\t%s", e->GetVariable()->GetName().c_str()); }
-    printf("\n");
+    fprintf(stderr, "Time");
+    for (Equation *e : vActiveComps) {
+      fprintf(stderr, "\t%s", e->GetVariable()->GetName().c_str());
+    };
+    for (Equation *e : vRateComps) {
+      fprintf(stderr, "\t%s", e->GetVariable()->GetName().c_str());
+    }
+    fprintf(stderr, "\n");
 
     for (t = s; t <= e; t += dt) {
       info.dTime = t;
       // printf("\n\nAt time %g\n",t) ;
       if (time)
         time->SetActiveValue(0, t);
-      printf("%g", t);
+      fprintf(stderr, "%g", t);
       BOOST_FOREACH (Equation *e, vActiveComps) {
         e->Execute(&info);
-        printf("\t%g", e->GetVariable()->Eval(&info));
+        fprintf(stderr, "\t%g", e->GetVariable()->Eval(&info));
       }
       BOOST_FOREACH (Equation *e, vRateComps) {
         e->Execute(&info);
-        printf("\t%g", e->GetVariable()->Eval(&info));
+        fprintf(stderr, "\t%g", e->GetVariable()->Eval(&info));
       }
-      printf("\n");
+      fprintf(stderr, "\n");
       if (step)
         info.dDT = dt = step->Eval(&info);
       // update states
@@ -343,18 +347,18 @@ bool Model::OutputComputable(bool wantshort) {
     else
       GenerateCanonicalNames();
     info.iComputeType = CF_initial;
-    printf("------------- initial time -----------------\n");
+    fprintf(stderr, "------------- initial time -----------------\n");
     BOOST_FOREACH (Equation *e, vInitialTimeComps) { e->OutputComputable(&info); }
-    printf("------------- initialization -----------------\n");
+    fprintf(stderr, "------------- initialization -----------------\n");
     BOOST_FOREACH (Equation *e, vInitialComps) { e->OutputComputable(&info); }
     info.iComputeType = CF_active;
-    printf("------------- Unchanging -----------------\n");
+    fprintf(stderr, "------------- Unchanging -----------------\n");
     info.iComputeType = CF_active;
     BOOST_FOREACH (Equation *e, vUnchangingComps) { e->OutputComputable(&info); }
-    printf("------------- active -----------------\n");
+    fprintf(stderr, "------------- active -----------------\n");
     BOOST_FOREACH (Equation *e, vActiveComps) { e->OutputComputable(&info); }
     info.iComputeType = CF_rate;
-    printf("------------- rates -----------------\n");
+    fprintf(stderr, "------------- rates -----------------\n");
     BOOST_FOREACH (Equation *e, vRateComps) { e->OutputComputable(&info); }
   } catch (...) {
     std::cerr << "Error of some sort" << std::endl;

@@ -36,7 +36,7 @@ VensimVariableElement::VensimVariableElement(VensimView *view, char *curpos, cha
     else if (!_ghost)
       _variable->SetView(view);
   } else
-    printf("Can't find - %s\n", name.c_str());
+    fprintf(stderr, "Can't find - %s\n", name.c_str());
 }
 VensimVariableElement::VensimVariableElement(VensimView *view, Variable *var, int x, int y) {
   _x = x;
