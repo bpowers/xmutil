@@ -1,4 +1,4 @@
-FROM alpine:3.9 as builder
+FROM alpine:3 as builder
 
 MAINTAINER Bobby Powers "bobbypowers@gmail.com"
 
