@@ -71,15 +71,16 @@ bool XMILEGenerator::Generate(FILE *file, std::vector<std::string> &errs) {
     root->InsertEndChild(macro);
   }
 
-  tinyxml2::XMLError err = doc.SaveFile(file);
-  if (err != tinyxml2::XML_SUCCESS) {
-    if (doc.ErrorStr())
+  tinyxml2::XMLPrinter printer{nullptr, true};
+  if (!doc.Accept(&printer)) {
+    if (doc.ErrorStr()) {
       errs.push_back("TinyXML2 Error: " + std::string(doc.ErrorStr()));
-    else
-      errs.push_back("File error opening document");
-
+    }
     return false;
   }
+
+  std::string xmile = printer.CStr();
+  fprintf(file, "%s\n", xmile.c_str());
 
   return true;
 }
@@ -566,7 +567,7 @@ void XMILEGenerator::generateView(VensimView *view, tinyxml2::XMLElement *elemen
         Variable *var = vele->GetVariable();
         // skip time altogether - this never shows up under xmil
         if (!var || StringMatch(vele->GetVariable()->GetName(), "Time") || var->Unwanted()) {
-		// do nothing
+          // do nothing
         } else if (vele->Ghost()) {
           assert(vele->GetVariable()->VariableType() != XMILE_Type_ARRAY);
           tinyxml2::XMLElement *xghost = doc->NewElement("alias");
