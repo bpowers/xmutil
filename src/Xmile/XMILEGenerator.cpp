@@ -46,7 +46,7 @@ bool XMILEGenerator::Generate(FILE *file, std::vector<std::string> &errs) {
   root->InsertEndChild(model);
 
   // macros are presented as separate models
-  BOOST_FOREACH (MacroFunction *mf, _model->MacroFunctions()) {
+  for (MacroFunction *mf : _model->MacroFunctions()) {
     tinyxml2::XMLElement *macro = doc.NewElement("macro");
     macro->SetAttribute("name", mf->GetName().c_str());
 
@@ -191,7 +191,7 @@ void XMILEGenerator::generateModelUnits(tinyxml2::XMLElement *element, std::vect
 
   std::vector<std::string> &equivs = _model->UnitEquivs();
 
-  BOOST_FOREACH (std::string &equiv, equivs) {
+  for (std::string &equiv : equivs) {
     std::string name;
     std::string eqn;
     std::vector<std::string> aliases;
@@ -222,7 +222,7 @@ void XMILEGenerator::generateModelUnits(tinyxml2::XMLElement *element, std::vect
       xeqn->SetText(eqn.c_str());
       xunit->InsertEndChild(xeqn);
     }
-    BOOST_FOREACH (std::string &alias, aliases) {
+    for (std::string &alias : aliases) {
       tinyxml2::XMLElement *xalias = doc->NewElement("alias");
       xalias->SetText(alias.c_str());
       xunit->InsertEndChild(xalias);
@@ -234,7 +234,7 @@ void XMILEGenerator::generateModelUnits(tinyxml2::XMLElement *element, std::vect
 void XMILEGenerator::generateDimensions(tinyxml2::XMLElement *element, std::vector<std::string> &errs) {
   tinyxml2::XMLDocument *doc = element->GetDocument();
   std::vector<Variable *> vars = _model->GetVariables();  // all symbols that are variables
-  BOOST_FOREACH (Variable *var, vars) {
+  for (Variable *var : vars) {
     if (var->VariableType() == XMILE_Type_ARRAY) {
       // simple minded - defining equation -
       Equation *eq = var->GetEquation(0);
@@ -255,7 +255,7 @@ void XMILEGenerator::generateDimensions(tinyxml2::XMLElement *element, std::vect
           if (!expanded.empty() /* && expanded[0]->Owner() == var*/) {
             tinyxml2::XMLElement *xsub = doc->NewElement("dim");
             xsub->SetAttribute("name", var->GetName().c_str());
-            BOOST_FOREACH (Symbol *s, expanded) {
+            for (Symbol *s : expanded) {
               tinyxml2::XMLElement *xelm = doc->NewElement("elem");
               xelm->SetAttribute("name", s->GetName().c_str());
               xsub->InsertEndChild(xelm);
@@ -275,7 +275,7 @@ void XMILEGenerator::generateModel(tinyxml2::XMLElement *element, std::vector<st
   element->InsertEndChild(variables);
 
   std::vector<Variable *> vars = _model->GetVariables(ns);  // all symbols that are variables
-  BOOST_FOREACH (Variable *var, vars) {
+  for (Variable *var : vars) {
     if (var->Unwanted())
       continue;
     XMILE_Type type = var->VariableType();
@@ -317,12 +317,12 @@ void XMILEGenerator::generateModel(tinyxml2::XMLElement *element, std::vector<st
       xcomment->SetText(comment.c_str());
     }
     if (type == XMILE_Type_STOCK) {
-      BOOST_FOREACH (Variable *in, var->Inflows()) {
+      for (Variable *in : var->Inflows()) {
         tinyxml2::XMLElement *inflow = doc->NewElement("inflow");
         xvar->InsertEndChild(inflow);
         inflow->SetText(SpaceToUnderBar(in->GetAlternateName()).c_str());
       }
-      BOOST_FOREACH (Variable *out, var->Outflows()) {
+      for (Variable *out : var->Outflows()) {
         tinyxml2::XMLElement *outflow = doc->NewElement("outflow");
         xvar->InsertEndChild(outflow);
         outflow->SetText(SpaceToUnderBar(out->GetAlternateName()).c_str());
@@ -347,7 +347,7 @@ void XMILEGenerator::generateModel(tinyxml2::XMLElement *element, std::vector<st
           elms.clear();
           eqn->SubscriptExpand(elms, subs);
           assert(!elms.empty());
-          BOOST_FOREACH (std::vector<Symbol *> elm, elms) {
+          for (std::vector<Symbol *> elm : elms) {
             for (int i = 0; i < dim_count; i++) {
               entries[i].insert(elm[i]);
             }
@@ -497,13 +497,13 @@ void XMILEGenerator::generateViews(tinyxml2::XMLElement *element, tinyxml2::XMLE
   if (views.empty() && mainmodel) {
     std::vector<ModelGroup> &groups = _model->Groups();
     if (!groups.empty()) {
-      BOOST_FOREACH (ModelGroup &group, groups) {
+      for (ModelGroup &group : groups) {
         tinyxml2::XMLElement *xgroup = doc->NewElement("group");
         xgroup->SetAttribute("name", group.sName.c_str());
         if (group.sOwner != group.sName)
           xgroup->SetAttribute("owner", group.sOwner.c_str());
         element->InsertEndChild(xgroup);
-        BOOST_FOREACH (Variable *var, group.vVariables) {
+        for (Variable *var : group.vVariables) {
           tinyxml2::XMLElement *xvar = doc->NewElement("var");
           xvar->SetText(SpaceToUnderBar(var->GetAlternateName()).c_str());
           xgroup->InsertEndChild(xvar);
@@ -521,7 +521,7 @@ void XMILEGenerator::generateViews(tinyxml2::XMLElement *element, tinyxml2::XMLE
   tinyxml2::XMLElement *xview = doc->NewElement("view");
   element->InsertEndChild(xview);
   int uid_off = 0;
-  BOOST_FOREACH (View *gview, views) {
+  for (View *gview : views) {
     VensimView *view = static_cast<VensimView *>(gview);
     // first update geometry - we put views one after another along the y axix - could lay out in pages or something
     uid_off = view->SetViewStart(x, y + 20, uid_off);
@@ -558,7 +558,7 @@ void XMILEGenerator::generateView(VensimView *view, tinyxml2::XMLElement *elemen
   int uid = view->UIDOffset();
   int local_uid = 0;
   VensimViewElements &elements = view->Elements();
-  BOOST_FOREACH (VensimViewElement *ele, elements) {
+  for (VensimViewElement *ele : elements) {
     if (ele) {
       if (ele->Type() == VensimViewElement::ElementTypeVARIABLE) {
         VensimVariableElement *vele = static_cast<VensimVariableElement *>(ele);
@@ -632,14 +632,14 @@ void XMILEGenerator::generateView(VensimView *view, tinyxml2::XMLElement *elemen
                       Variable *var = stock->GetVariable();
                       if (toind == -1 && var && var->VariableType() == XMILE_Type_STOCK) {
                         // are we an inflow or an outflow
-                        BOOST_FOREACH (Variable *inflow, var->Inflows()) {
+                        for (Variable *inflow : var->Inflows()) {
                           if (inflow == vele->GetVariable()) {
                             toind = count;
                             break;
                           }
                         }
                         if (toind == -1) {
-                          BOOST_FOREACH (Variable *outflow, var->Outflows()) {
+                          for (Variable *outflow : var->Outflows()) {
                             if (outflow == vele->GetVariable()) {
                               toind = count ? 0 : 1;
                               break;

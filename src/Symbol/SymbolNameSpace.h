@@ -1,6 +1,5 @@
 #ifndef _XMUTIL_SYMBOL_NAMESPACE_H
 #define _XMUTIL_SYMBOL_NAMESPACE_H
-#include <boost/foreach.hpp>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -31,7 +30,7 @@ public:
     sUnconfirmedAllocations.insert(s);
   }
   typedef std::unordered_map<std::string, Symbol *> HashTable;
-  typedef HashTable::value_type iterator;  // allows iterator type to be used directly with BOOST_FOREACH
+  typedef HashTable::value_type iterator;  // allows iterator type to be used directly with c++11 for loops
   inline HashTable *GetHashTable(void) {
     return &mHashTable;
   }

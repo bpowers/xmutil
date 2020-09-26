@@ -53,7 +53,9 @@ void Main_Window::choose_file() {
     std::vector<std::string> errs;
     m.WriteToXMILE(p.string(), errs);
 
-    BOOST_FOREACH (const std::string &err, errs) { ui->log->append(StdString_to_QString(err)); }
+    for (const std::string &err : errs) {
+      ui->log->append(StdString_to_QString(err));
+    }
 
     ui->log->append("Translation Complete: " + StdString_to_QString(p.string()));
   }

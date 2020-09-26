@@ -2,7 +2,7 @@
 
 #include <assert.h>
 
-#include <boost/foreach.hpp>
+#include <cstring>
 
 #include "../XMUtil.h"
 #include "Symbol.h"
@@ -14,8 +14,8 @@ SymbolNameSpace::SymbolNameSpace(void) {
 
 SymbolNameSpace::~SymbolNameSpace(void) {
   /* delete the symbols which will in turn delete equations etc */
-  // BOOST_FOREACH(iterator node,mHashTable) {
-  //    delete SNSitToSymbol(node) ;
+  // for (iterator node: mHashTable) {
+  //    delete SNSitToSymbol(node);
   // }
 }
 
@@ -135,6 +135,8 @@ void SymbolNameSpace::DeleteAllUnconfirmedAllocations(void) {
 }
 
 void SymbolNameSpace::ConfirmAllAllocations(void) {
-  BOOST_FOREACH (std::set<SymbolTableBase *>::value_type i, sUnconfirmedAllocations) { i->MarkGoodAlloc(); }
+  for (std::set<SymbolTableBase *>::value_type i : sUnconfirmedAllocations) {
+    i->MarkGoodAlloc();
+  }
   sUnconfirmedAllocations.clear();
 }
