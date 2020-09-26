@@ -152,20 +152,20 @@ void XMILEGenerator::generateSimSpecs(tinyxml2::XMLElement *element, std::vector
     element->SetAttribute("isee:sim_duration", "0");
 
   tinyxml2::XMLElement *startEle = doc->NewElement("start");
-  startEle->SetText(StringFromDouble(start).c_str());
+  startEle->SetText(std::to_string(start).c_str());
   element->InsertEndChild(startEle);
 
   tinyxml2::XMLElement *stopEle = doc->NewElement("stop");
-  stopEle->SetText(StringFromDouble(stop).c_str());
+  stopEle->SetText(std::to_string(stop).c_str());
   element->InsertEndChild(stopEle);
 
   tinyxml2::XMLElement *dtEle = doc->NewElement("dt");
-  dtEle->SetText(StringFromDouble(dt).c_str());
+  dtEle->SetText(std::to_string(dt).c_str());
   element->InsertEndChild(dtEle);
 
   if (saveper > dt) {
     tinyxml2::XMLElement *spE = doc->NewElement("isee:save_interval");
-    spE->SetText(StringFromDouble(saveper).c_str());
+    spE->SetText(std::to_string(saveper).c_str());
     element->InsertEndChild(spE);
   }
 
@@ -397,7 +397,7 @@ void XMILEGenerator::generateModel(tinyxml2::XMLElement *element, std::vector<st
         for (size_t i = 0; i < xvals->size(); i++) {
           if (i)
             xstr += ",";
-          xstr += StringFromDouble((*xvals)[i]);
+          xstr += std::to_string((*xvals)[i]);
         }
         xpts->SetText(xstr.c_str());
 
@@ -413,14 +413,14 @@ void XMILEGenerator::generateModel(tinyxml2::XMLElement *element, std::vector<st
               ymax = (*yvals)[i];
           } else
             ymin = ymax = (*yvals)[i];
-          ystr += StringFromDouble((*yvals)[i]);
+          ystr += std::to_string((*yvals)[i]);
         }
         ypts->SetText(ystr.c_str());
 
         if (ymin == ymax)
           ymax = ymin + 1;
-        yscale->SetAttribute("min", StringFromDouble(ymin).c_str());
-        yscale->SetAttribute("max", StringFromDouble(ymax).c_str());
+        yscale->SetAttribute("min", std::to_string(ymin).c_str());
+        yscale->SetAttribute("max", std::to_string(ymax).c_str());
       }
       if (eq_count > 1) {
         eq_pos++;
@@ -541,10 +541,10 @@ void XMILEGenerator::generateViews(tinyxml2::XMLElement *element, tinyxml2::XMLE
       tinyxml2::XMLElement *xsector = doc->NewElement("group");
       xview->InsertEndChild(xsector);
       xsector->SetAttribute("name", name.c_str());
-      xsector->SetAttribute("x", StringFromDouble(x - 40).c_str());
-      xsector->SetAttribute("y", StringFromDouble(y).c_str());
-      xsector->SetAttribute("width", StringFromDouble(width + 60).c_str());
-      xsector->SetAttribute("height", StringFromDouble(height + 40).c_str());
+      xsector->SetAttribute("x", std::to_string(x - 40).c_str());
+      xsector->SetAttribute("y", std::to_string(y).c_str());
+      xsector->SetAttribute("width", std::to_string(width + 60).c_str());
+      xsector->SetAttribute("height", std::to_string(height + 40).c_str());
     }
 
     y += height + 80;
@@ -564,9 +564,9 @@ void XMILEGenerator::generateView(VensimView *view, tinyxml2::XMLElement *elemen
         VensimVariableElement *vele = static_cast<VensimVariableElement *>(ele);
         Variable *var = vele->GetVariable();
         // skip time altogether - this never shows up under xmil
-        if (!var || StringMatch(vele->GetVariable()->GetName(), "Time") || var->Unwanted())
-          ;  // do nothing
-        else if (vele->Ghost()) {
+        if (!var || StringMatch(vele->GetVariable()->GetName(), "Time") || var->Unwanted()) {
+		// do nothing
+        } else if (vele->Ghost()) {
           assert(vele->GetVariable()->VariableType() != XMILE_Type_ARRAY);
           tinyxml2::XMLElement *xghost = doc->NewElement("alias");
           element->InsertEndChild(xghost);
