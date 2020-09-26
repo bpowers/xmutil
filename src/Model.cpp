@@ -1,6 +1,5 @@
 #include "Model.h"
 
-#include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
 #include <iostream>
 #include <vector>
@@ -42,11 +41,11 @@ void Model::ClearCompEquations(void) {
   vInitialTimeComps.clear();
 
   SymbolNameSpace::HashTable *ht = mSymbolNameSpace.GetHashTable();
-  BOOST_FOREACH (const SymbolNameSpace::iterator it, *ht) {
+  for (const SymbolNameSpace::iterator it : *ht) {
     SNSitToSymbol(it)->SetupState(NULL);
     SNSitToSymbol(it)->CheckPlaceholderVars(NULL);
   }
-  BOOST_FOREACH (Variable *v, vUnamedVars) {
+  for (Variable *v : vUnamedVars) {
     v->GetEquation(0)->GetExpression()->RemoveFunctionArgs();  // these are allocated in the real variable's equation
     v->SetupState(NULL);
     delete v;
@@ -74,7 +73,7 @@ bool Model::OrganizeSubscripts(void) {
   SubInfoWCount siwc;
   try {
     SymbolNameSpace::HashTable *ht = mSymbolNameSpace.GetHashTable();
-    BOOST_FOREACH (const SymbolNameSpace::iterator it, *ht) {
+    for (const SymbolNameSpace::iterator it : *ht) {
       siwc.v = static_cast<Variable *> SNSitToSymbol(it);
       if (siwc.count = siwc.v->SubscriptCount(subelm)) {
         sublist.push_back(siwc);
@@ -91,7 +90,7 @@ bool Model::OrganizeSubscripts(void) {
 bool Model::ValidatePlaceholderVars(void) {
   try {
     SymbolNameSpace::HashTable *ht = mSymbolNameSpace.GetHashTable();
-    BOOST_FOREACH (const SymbolNameSpace::iterator it, *ht) {
+    for (const SymbolNameSpace::iterator it : *ht) {
       // printf("Checking placeholders out %s\n",SNSitToSymbol(it)->GetName().c_str()) ;
       SNSitToSymbol(it)->CheckPlaceholderVars(this);
     }
@@ -128,9 +127,13 @@ bool Model::SetupVariableStates(int pass /* 0 just assign, 1 determine sizes, 2 
       info.pBaseLevel = info.pCurLevel = NULL;
       info.iComputeType = 0;
     }
-    BOOST_FOREACH (const SymbolNameSpace::iterator it, *ht) { SNSitToSymbol(it)->SetupState(&info); }
+    for (const SymbolNameSpace::iterator it : *ht) {
+      SNSitToSymbol(it)->SetupState(&info);
+    }
     // placeholder vars also need state set up
-    BOOST_FOREACH (Variable *v, vUnamedVars) { v->SetupState(&info); }
+    for (Variable *v : vUnamedVars) {
+      v->SetupState(&info);
+    }
     mSymbolNameSpace.ConfirmAllAllocations();
     if (pass == 1) {
       iNLevel = (info.pCurLevel - info.pBaseLevel);
@@ -138,7 +141,7 @@ bool Model::SetupVariableStates(int pass /* 0 just assign, 1 determine sizes, 2 
     }
   } catch (...) {
     // set all states to null - they will be deleted
-    BOOST_FOREACH (const SymbolNameSpace::iterator it, *ht) {
+    for (const SymbolNameSpace::iterator it : *ht) {
       SNSitToSymbol(it)->SetupState(NULL);  // clear if setup
     }
     mSymbolNameSpace.DeleteAllUnconfirmedAllocations();
@@ -179,12 +182,12 @@ bool Model::OrderEquations(ContextInfo *info, bool tonly) {
       if (!v || !v->CheckComputed(info, false))
         haserr = true;
     } else {
-      BOOST_FOREACH (const SymbolNameSpace::iterator it, *ht) {
+      for (const SymbolNameSpace::iterator it : *ht) {
         // printf("Looping to: %s\n",SNSitToSymbol(it)->GetName().c_str()) ;
         if (!SNSitToSymbol(it)->CheckComputed(info, true))
           haserr = true;  // continue looking for simultaneous even when false
       }
-      BOOST_FOREACH (Variable *v, vUnamedVars) {
+      for (Variable *v : vUnamedVars) {
         if (!v->CheckComputed(info, true))
           haserr = true;
       }
@@ -267,7 +270,7 @@ bool Model::Simulate(void) {
     n = iNLevel;
 
     info.iComputeType = CF_initial;
-    BOOST_FOREACH (Equation *e, vInitialTimeComps) {
+    for (Equation *e : vInitialTimeComps) {
       e->Execute(&info);
       // printf("%s = %g\n",e->GetVariable()->GetName().c_str(),e->GetVariable()->Eval(&info)) ;
     }
@@ -281,7 +284,7 @@ bool Model::Simulate(void) {
       dt = 1;
     info.dTime = s;
     info.dDT = dt;
-    BOOST_FOREACH (Equation *e, vInitialComps) {
+    for (Equation *e : vInitialComps) {
       e->Execute(&info);
       // printf("%s = %g\n",e->GetVariable()->GetName().c_str(),e->GetVariable()->Eval(&info)) ;
     }
@@ -289,7 +292,7 @@ bool Model::Simulate(void) {
     info.iComputeType = CF_active;
     // first the unchanging variables
     // printf("\n Unchanging\n") ;
-    BOOST_FOREACH (Equation *e, vUnchangingComps) {
+    for (Equation *e : vUnchangingComps) {
       e->Execute(&info);
       // printf("%s = %g\n",e->GetVariable()->GetName().c_str(),e->GetVariable()->Eval(&info)) ;
     }
@@ -314,11 +317,11 @@ bool Model::Simulate(void) {
       if (time)
         time->SetActiveValue(0, t);
       fprintf(stderr, "%g", t);
-      BOOST_FOREACH (Equation *e, vActiveComps) {
+      for (Equation *e : vActiveComps) {
         e->Execute(&info);
         fprintf(stderr, "\t%g", e->GetVariable()->Eval(&info));
       }
-      BOOST_FOREACH (Equation *e, vRateComps) {
+      for (Equation *e : vRateComps) {
         e->Execute(&info);
         fprintf(stderr, "\t%g", e->GetVariable()->Eval(&info));
       }
@@ -348,18 +351,28 @@ bool Model::OutputComputable(bool wantshort) {
       GenerateCanonicalNames();
     info.iComputeType = CF_initial;
     fprintf(stderr, "------------- initial time -----------------\n");
-    BOOST_FOREACH (Equation *e, vInitialTimeComps) { e->OutputComputable(&info); }
+    for (Equation *e : vInitialTimeComps) {
+      e->OutputComputable(&info);
+    }
     fprintf(stderr, "------------- initialization -----------------\n");
-    BOOST_FOREACH (Equation *e, vInitialComps) { e->OutputComputable(&info); }
+    for (Equation *e : vInitialComps) {
+      e->OutputComputable(&info);
+    }
     info.iComputeType = CF_active;
     fprintf(stderr, "------------- Unchanging -----------------\n");
     info.iComputeType = CF_active;
-    BOOST_FOREACH (Equation *e, vUnchangingComps) { e->OutputComputable(&info); }
+    for (Equation *e : vUnchangingComps) {
+      e->OutputComputable(&info);
+    }
     fprintf(stderr, "------------- active -----------------\n");
-    BOOST_FOREACH (Equation *e, vActiveComps) { e->OutputComputable(&info); }
+    for (Equation *e : vActiveComps) {
+      e->OutputComputable(&info);
+    }
     info.iComputeType = CF_rate;
     fprintf(stderr, "------------- rates -----------------\n");
-    BOOST_FOREACH (Equation *e, vRateComps) { e->OutputComputable(&info); }
+    for (Equation *e : vRateComps) {
+      e->OutputComputable(&info);
+    }
   } catch (...) {
     std::cerr << "Error of some sort" << std::endl;
     return false;
@@ -377,14 +390,14 @@ bool Model::MarkVariableTypes(SymbolNameSpace *ns) {
       ns = &mSymbolNameSpace;
     }
     std::vector<Variable *> vars;
-    BOOST_FOREACH (const SymbolNameSpace::iterator it, *ht) {
+    for (const SymbolNameSpace::iterator it : *ht) {
       Symbol *sym = SNSitToSymbol(it);
 
       if (sym->isType() == Symtype_Variable)
         vars.push_back(static_cast<Variable *>(sym));
     }
     //
-    BOOST_FOREACH (Variable *var, vars) {
+    for (Variable *var : vars) {
       var->MarkFlows(ns);  // may change number of entries so can't be in above loop
     }
     // don't do this - we have broken the allocation setup mSymbolNameSpace.ConfirmAllAllocations();
@@ -398,14 +411,16 @@ bool Model::MarkVariableTypes(SymbolNameSpace *ns) {
   ContextInfo info;
 
   SymbolNameSpace::HashTable *ht = mSymbolNameSpace.GetHashTable();
-  BOOST_FOREACH (const SymbolNameSpace::iterator it, *ht) {
+  for (const SymbolNameSpace::iterator it : *ht) {
     Symbol *sym = SNSitToSymbol(it);
 
     if (sym->isType() == Symtype_Variable) {
       Variable *var = static_cast<Variable *>(sym);
       VariableContent *content = var->Content();
       if (content) {  // array elements don't have
-        BOOST_FOREACH (Equation *eq, content->GetAllEquations()) { eq->OutputComputable(&info); }
+        for (Equation *eq : content->GetAllEquations()) {
+          eq->OutputComputable(&info);
+        }
       }
     }
   }
@@ -417,7 +432,7 @@ bool Model::MarkVariableTypes(SymbolNameSpace *ns) {
 void Model::AttachStragglers() {
   SymbolNameSpace::HashTable *ht = mSymbolNameSpace.GetHashTable();
   std::vector<Variable *> vars;
-  BOOST_FOREACH (const SymbolNameSpace::iterator it, *ht) {
+  for (const SymbolNameSpace::iterator it : *ht) {
     Symbol *sym = SNSitToSymbol(it);
 
     if (sym->isType() == Symtype_Variable)
@@ -425,29 +440,29 @@ void Model::AttachStragglers() {
   }
   // first try - anything that is not defined somewhere see if a ghost appears somewhere
   // and change that to the definition
-  BOOST_FOREACH (Variable *var, vars) {
+  for (Variable *var : vars) {
     if (!var->GetView()) {
-      BOOST_FOREACH (View *view, vViews) {
+      for (View *view : vViews) {
         if (view->UpgradeGhost(var))
           break;
       }
     }
   }
   // now try undefined flows - attach to associated stocks
-  BOOST_FOREACH (Variable *var, vars) {
+  for (Variable *var : vars) {
     if (!var->GetView() && var->VariableType() == XMILE_Type_FLOW) {
       // we don't know flows uses so just look at all stocks
       Variable *upstream = NULL;
       Variable *downstream = NULL;
-      BOOST_FOREACH (Variable *stock, vars) {
+      for (Variable *stock : vars) {
         if (stock->VariableType() == XMILE_Type_STOCK) {
-          BOOST_FOREACH (Variable *in, stock->Inflows()) {
+          for (Variable *in : stock->Inflows()) {
             if (in == var) {
               downstream = stock;
               break;
             }
           }
-          BOOST_FOREACH (Variable *out, stock->Outflows()) {
+          for (Variable *out : stock->Outflows()) {
             if (out == var) {
               upstream = stock;
               break;
@@ -469,7 +484,7 @@ void Model::AttachStragglers() {
   // finally dump everything remaining at 40,40 on the first view
   if (!vViews.empty()) {
     View *dump_view = vViews[0];
-    BOOST_FOREACH (Variable *var, vars) {
+    for (Variable *var : vars) {
       if (!var->GetView() && var->VariableType() != XMILE_Type_ARRAY && var->VariableType() != XMILE_Type_ARRAY_ELM &&
           var->VariableType() != XMILE_Type_UNKNOWN)
         dump_view->AddVarDefinition(var, 200, 200);
@@ -477,7 +492,9 @@ void Model::AttachStragglers() {
   }
 
   // now everything is defined (and only defined once) - we need to make sure there are no missing connectors
-  BOOST_FOREACH (View *view, vViews) { view->CheckLinksIn(); }
+  for (View *view : vViews) {
+    view->CheckLinksIn();
+  }
 }
 
 bool Model::RenameVariable(Variable *v, const std::string &newname) {
@@ -499,23 +516,18 @@ void Model::GenerateCanonicalNames(void) {
 }
 
 void Model::GenerateShortNames(void) {
-  Variable *v;
-  int i = 0;
-  std::string s;
+  size_t i = 0;
   SymbolNameSpace::HashTable *ht = mSymbolNameSpace.GetHashTable();
-  BOOST_FOREACH (const SymbolNameSpace::iterator it, *ht) {
-    v = static_cast<Variable *> SNSitToSymbol(it);
+  for (const SymbolNameSpace::iterator it : *ht) {
+    Variable *v = static_cast<Variable *>(SNSitToSymbol(it));
     if (v->isType() == Symtype_Variable) {
-      s = "v" + boost::lexical_cast<std::string>(i);
-      ;
+      std::string s = "v" + boost::lexical_cast<std::string>(i);
       i++;
       v->SetAlternateName(s);
-      // v->SetAlternateName(v->GetName()) ;
     }
   }
-  BOOST_FOREACH (v, vUnamedVars) {
-    s = "v" + boost::lexical_cast<std::string>(i);
-    ;
+  for (auto v : vUnamedVars) {
+    std::string s = "v" + boost::lexical_cast<std::string>(i);
     i++;
     v->SetAlternateName(s);
   }
