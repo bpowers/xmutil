@@ -1,6 +1,5 @@
 #ifndef _XMUTIL_VENSIM_VENSIMPARSE_H
 #define _XMUTIL_VENSIM_VENSIMPARSE_H
-#include <boost/iostreams/device/mapped_file.hpp>
 #include <iostream>
 #include <string>
 
