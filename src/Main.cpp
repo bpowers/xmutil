@@ -121,8 +121,8 @@ int cliMain(int argc, char *argv[], Model *m) {
   }
 
   std::vector<std::string> errs;
-  m->WriteToXMILE(out, errs);
-
+  auto xmile = m->PrintXMILE(false, errs);
+  fprintf(out, "%s", xmile.c_str());
   fclose(out);
 
   for (const std::string &err : errs) {

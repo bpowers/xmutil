@@ -57,6 +57,11 @@ inline void __cdecl operator delete[](void *p) {
 #endif
 #endif
 
+extern "C" {
+// returns NULL on error or a string containing XMILE that the caller now owns
+char *convert_mdl(const char *mdlSource, bool isCompact);
+}
+
 // unicode utility functions
 bool OpenUCaseMap();
 void CloseUCaseMap();
