@@ -102,6 +102,7 @@
         'sources': [
             './src/XMUtil.h',
             './src/XMUtil.cpp',
+            './src/Main.cpp',
             './src/Model.h',
             './src/Model.cpp',
             './src/ContextInfo.h',
