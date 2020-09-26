@@ -17,6 +17,7 @@ bool XMILEGenerator::Generate(FILE *file, std::vector<std::string> &errs) {
   tinyxml2::XMLElement *root = doc.NewElement("xmile");
   root->SetName("xmile");
   root->SetAttribute("xmlns", "http://docs.oasis-open.org/xmile/ns/XMILE/v1.0");
+  root->SetAttribute("xmlns:isee", "http://iseesystems.com/XMILE");
   root->SetAttribute("version", "1.0");
   doc.InsertFirstChild(root);
 
