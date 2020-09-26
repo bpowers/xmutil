@@ -9,7 +9,6 @@ RUN apk add --no-cache --virtual .build-deps \
 	ninja \
 	gcc \
 	git \
-	boost-thread \
 	boost-dev \
 	python2 \
 	libc-dev \
@@ -28,13 +27,7 @@ RUN ./configure.sh \
 FROM alpine:3
 
 RUN apk add --no-cache --virtual .build-deps \
-	boost-chrono \
-	boost-date_time \
 	boost-filesystem \
-	boost-iostreams \
-	boost-random \
-	boost-system \
-	boost-thread \
 	libstdc++ \
 	icu \
 	tinyxml2
