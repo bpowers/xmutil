@@ -42,7 +42,9 @@ void SymbolList::SetOwner(Variable *var) {
       vSymbols[i].u.pSymbol->SetOwner(var);
     }
   }
-  BOOST_FOREACH (Symbol *s, expanded) { s->SetOwner(var); }
+  for (Symbol *s : expanded) {
+    s->SetOwner(var);
+  }
   if (expanded[0]->Owner() != var)
     var->SetOwner(expanded[0]->Owner());
 }

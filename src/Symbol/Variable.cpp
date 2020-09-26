@@ -2,7 +2,6 @@
 
 #include <assert.h>
 
-#include <boost/foreach.hpp>
 #include <iostream>
 
 #include "../Symbol/Expression.h"
@@ -109,7 +108,7 @@ XMILE_Type Variable::MarkFlows(SymbolNameSpace *sns) {
         exp->GetVarsUsed(vars);
         // the first should be a graphical
         std::vector<Equation *> eqs = vars[0]->GetAllEquations();
-        BOOST_FOREACH (Equation *eq, eqs) {
+        for (Equation *eq : eqs) {
           Expression *exp = eq->GetExpression();
           if (exp->GetType() == EXPTYPE_Table)
             static_cast<ExpressionTable *>(exp)->SetExtrapolate(true);
@@ -135,7 +134,7 @@ XMILE_Type Variable::MarkFlows(SymbolNameSpace *sns) {
   flow_lists.resize(equations.size());
   size_t i = 0;
   bool match = true;
-  BOOST_FOREACH (Equation *eq, equations) {
+  for (Equation *eq : equations) {
     Expression *exp = eq->GetExpression();
     if (!exp->TestMarkFlows(sns, &flow_lists[i], NULL) || !flow_lists[i].Valid())
       match = false;
@@ -144,11 +143,11 @@ XMILE_Type Variable::MarkFlows(SymbolNameSpace *sns) {
     i++;
   }
   if (match) {
-    BOOST_FOREACH (Variable *v, flow_lists[0].Inflows()) {
+    for (Variable *v : flow_lists[0].Inflows()) {
       v->SetVariableType(XMILE_Type_FLOW);
       mInflows.push_back(v);
     }
-    BOOST_FOREACH (Variable *v, flow_lists[0].Outflows()) {
+    for (Variable *v : flow_lists[0].Outflows()) {
       v->SetVariableType(XMILE_Type_FLOW);
       mOutflows.push_back(v);
     }
@@ -170,7 +169,7 @@ XMILE_Type Variable::MarkFlows(SymbolNameSpace *sns) {
   // now we swap the active part of the INTEG equation for v and set v's equation to
   // the active part - this is equation by equation
   i = 0;
-  BOOST_FOREACH (Equation *eq, equations) {
+  for (Equation *eq : equations) {
     // left hand side for this variable
     LeftHandSide *lhs = new LeftHandSide(sns, *eq->GetLeft(), v);  // replace var in lhs equation
     Equation *neweq = new Equation(sns, lhs, flow_lists[i].ActiveExpression(), '=');
@@ -207,7 +206,7 @@ void VariableContentVar::Clear(void) {
 }
 std::vector<Variable *> VariableContentVar::GetInputVars() {
   std::vector<Variable *> vars;
-  BOOST_FOREACH (Equation *eq, this->vEquations)
+  for (Equation *eq : this->vEquations)
     eq->GetVarsUsed(vars);
   return vars;
 }
@@ -232,7 +231,9 @@ VariableContent::~VariableContent(void) {
 }
 
 void VariableContentVar::CheckPlaceholderVars(Model *m) {
-  BOOST_FOREACH (Equation *eq, vEquations) { eq->CheckPlaceholderVars(m); }
+  for (Equation *eq : vEquations) {
+    eq->CheckPlaceholderVars(m);
+  }
 }
 
 bool VariableContentVar::CheckComputed(Symbol *parent, ContextInfo *info, bool first) {
@@ -280,7 +281,7 @@ bool VariableContentVar::CheckComputed(Symbol *parent, ContextInfo *info, bool f
         info->AddDDF(DDF_time_varying);
     }
     pState->cComputeFlag |= intype;
-    BOOST_FOREACH (Equation *e, vEquations) {
+    for (Equation *e : vEquations) {
       if (!e->GetExpression()->CheckComputed(info)) {
         std::cerr << "     " << parent->GetName() << std::endl;
         pState->cComputeFlag &= ~intype;
@@ -328,7 +329,7 @@ void VariableContentVar::SetupState(ContextInfo *info) {
       return;  // do nothing no state allocated on the previous try
     // find out what defines this to determine type
     bool haseq = false;
-    BOOST_FOREACH (Equation *e, vEquations) {
+    for (Equation *e : vEquations) {
       haseq = true;
       if (e->GetExpression()->GetType() == EXPTYPE_Table) {
         return;  // for now no state assigned
