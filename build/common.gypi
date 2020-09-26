@@ -173,7 +173,6 @@
                     ],
                     'libraries': [
                         '-lboost_filesystem',
-                        '-ldl',
                         '-licuuc',
                         '-ltinyxml2',
                     ],
