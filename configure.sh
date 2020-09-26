@@ -64,7 +64,7 @@ elif [ $msvs = 'yes' ]; then
 else
     generator=ninja
 fi
-if [ $x86 = 'yes' ]; then
+if [ $arch_id = '32' && $x86 = 'yes' ]; then
     export CC="$CC -m32 -march=prescott"
     export CXX="$CXX -m32 -march=prescott"
 fi
