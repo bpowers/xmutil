@@ -274,3 +274,46 @@ void CheckMemoryTrack(int clear) {
   }
 }
 #endif
+
+extern "C" {
+// returns NULL on error or a string containing XMILE that the caller now owns
+char *convert_mdl(const char *mdlSource, bool isCompact) {
+  Model m{};
+
+  // parse the input
+  {
+    VensimParse vp{&m};
+    const size_t mdlSourceLen = strlen(mdlSource);
+    if (!vp.ProcessFile("<in memory>", mdlSource, mdlSourceLen)) {
+      return nullptr;
+    }
+  }
+
+  // if(m->AnalyzeEquations()) {
+  //   m->Simulate() ;
+  //   m->OutputComputable(true);
+  // }
+
+  // mark variable types and potentially convert INTEG equations
+  // involving expressions into flows (a single net flow on the first
+  // pass though this)
+  m.MarkVariableTypes(nullptr);
+
+  for (MacroFunction *mf : m.MacroFunctions()) {
+    m.MarkVariableTypes(mf->NameSpace());
+  }
+
+  // if there is a view then try to make sure everything is defined in
+  // the views put unknowns in a heap in the first view at 20,20 but
+  // for things that have connections try to put them in the right
+  // place
+  m.AttachStragglers();
+
+  // TODO: expose errs
+  std::vector<std::string> errs;
+  std::string xmile = m.PrintXMILE(isCompact, errs);
+  char *result = strdup(xmile.c_str());
+
+  return result;
+}
+}

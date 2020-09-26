@@ -12,6 +12,16 @@ XMILEGenerator::XMILEGenerator(Model *model) {
 }
 
 bool XMILEGenerator::Generate(FILE *file, std::vector<std::string> &errs) {
+  auto xmile = this->Print(true, errs);
+  if (xmile.size() == 0) {
+    return false;
+  }
+
+  fprintf(file, "%s\n", xmile.c_str());
+  return true;
+}
+
+std::string XMILEGenerator::Print(bool isCompact, std::vector<std::string> &errs) {
   tinyxml2::XMLDocument doc;
 
   tinyxml2::XMLElement *root = doc.NewElement("xmile");
@@ -71,18 +81,17 @@ bool XMILEGenerator::Generate(FILE *file, std::vector<std::string> &errs) {
     root->InsertEndChild(macro);
   }
 
-  tinyxml2::XMLPrinter printer{nullptr, true};
+  tinyxml2::XMLPrinter printer{nullptr, isCompact};
   if (!doc.Accept(&printer)) {
     if (doc.ErrorStr()) {
       errs.push_back("TinyXML2 Error: " + std::string(doc.ErrorStr()));
     }
-    return false;
+    return "";
   }
 
   std::string xmile = printer.CStr();
-  fprintf(file, "%s\n", xmile.c_str());
 
-  return true;
+  return xmile;
 }
 
 void XMILEGenerator::generateHeader(tinyxml2::XMLElement *element, std::vector<std::string> &errs) {
