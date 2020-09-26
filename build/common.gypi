@@ -182,10 +182,8 @@
                     '-Wall',
                     '-Wextra',
                     '-Wwrite-strings',
-                    '-Wno-conversion-null',
                     '-Wno-attributes',
                     '-Wno-unused-variable',
-                    '-Wno-reorder',
                     '-Wno-unused-but-set-variable',
                     '-Wno-sign-compare',
                     '-Wno-unused-local-typedefs',
@@ -193,8 +191,12 @@
                     '-Wno-unused-function',
                     '-Wno-unknown-pragmas',
                     '-Wno-parentheses',
-                    '-std=c++11',
                     '-fPIC',
+                ],
+                'cxxflags': [
+                    '-std=c++11',
+                    '-Wno-reorder',
+                    '-Wno-conversion-null',
                 ],
                 'libraries': [
 
