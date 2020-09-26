@@ -1,6 +1,5 @@
 #ifndef _XMUTIL_SYMBOL_FUNCTION_H
 #define _XMUTIL_SYMBOL_FUNCTION_H
-#include <boost/utility.hpp>
 
 #include "../Symbol/Symbol.h"
 #include "State.h"
@@ -231,8 +230,8 @@ FSubclassStart(FunctionSmoothN, "SMOOTH N", 4, "SMTHN") public
 }
 ;
 
-FSubclassMemory(FunctionInteg, "INTEG", 2, BOOST_BINARY(10), BOOST_BINARY(01), "integ_active", "integ_init")
-    FSubclassMemoryStart(FunctionActiveInitial, "ACTIVE INITIAL", 2, BOOST_BINARY(10), BOOST_BINARY(01), "ai_active",
+FSubclassMemory(FunctionInteg, "INTEG", 2, 0b10, 0b01, "integ_active", "integ_init")
+    FSubclassMemoryStart(FunctionActiveInitial, "ACTIVE INITIAL", 2, 0b10, 0b01, "ai_active",
                          "ai_init") virtual bool IsActiveInit() override {
   return true;
 }

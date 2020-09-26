@@ -1,6 +1,5 @@
 #include "Model.h"
 
-#include <boost/lexical_cast.hpp>
 #include <iostream>
 #include <vector>
 
@@ -521,13 +520,13 @@ void Model::GenerateShortNames(void) {
   for (const SymbolNameSpace::iterator it : *ht) {
     Variable *v = static_cast<Variable *>(SNSitToSymbol(it));
     if (v->isType() == Symtype_Variable) {
-      std::string s = "v" + boost::lexical_cast<std::string>(i);
+      std::string s = "v" + std::to_string(i);
       i++;
       v->SetAlternateName(s);
     }
   }
   for (auto v : vUnamedVars) {
-    std::string s = "v" + boost::lexical_cast<std::string>(i);
+    std::string s = "v" + std::to_string(i);
     i++;
     v->SetAlternateName(s);
   }
