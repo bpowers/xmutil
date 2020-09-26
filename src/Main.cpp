@@ -8,6 +8,9 @@
 #include "Model.h"
 #include "Vensim/VensimParse.h"
 #include "XMUtil.h"
+#include "unicode/ucasemap.h"
+#include "unicode/ustring.h"
+#include "unicode/utypes.h"
 
 #ifdef WITH_UI
 #include <QApplication>
@@ -16,6 +19,18 @@
 #endif
 
 static const char *argv0;
+
+UCaseMap *GlobalUCaseMap;
+bool OpenUCaseMap() {
+  UErrorCode ec = U_ZERO_ERROR;
+  GlobalUCaseMap = ucasemap_open("en", 0, &ec);
+  if (!GlobalUCaseMap)
+    return false;
+  return true;
+}
+void CloseUCaseMap() {
+  ucasemap_close(GlobalUCaseMap);
+}
 
 void cliUsage(void) {
   fprintf(stderr,

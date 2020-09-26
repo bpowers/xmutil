@@ -8,21 +8,6 @@
 
 #include "Model.h"
 #include "Vensim/VensimParse.h"
-#include "unicode/ucasemap.h"
-#include "unicode/ustring.h"
-#include "unicode/utypes.h"
-
-UCaseMap *GlobalUCaseMap;
-bool OpenUCaseMap() {
-  UErrorCode ec = U_ZERO_ERROR;
-  GlobalUCaseMap = ucasemap_open("en", 0, &ec);
-  if (!GlobalUCaseMap)
-    return false;
-  return true;
-}
-void CloseUCaseMap() {
-  ucasemap_close(GlobalUCaseMap);
-}
 
 std::string SpaceToUnderBar(const std::string &s) {
   std::string rval{s};
