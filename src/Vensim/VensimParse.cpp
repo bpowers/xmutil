@@ -5,7 +5,7 @@
 
 #include "VensimParse.h"
 
-#include <boost/lexical_cast.hpp>
+#include <cstring>
 
 #include "../Symbol/ExpressionList.h"
 #include "../Symbol/LeftHandSide.h"
@@ -456,7 +456,7 @@ SymbolList *VensimParse::SymList(SymbolList *in, Variable *add, bool bang, Varia
     }
     start.erase(i, std::string::npos);
     for (i = low + 1; i < high; i++) {
-      finish = start + boost::lexical_cast<std::string>(i);
+      finish = start + std::to_string(i);
       v = static_cast<Variable *>(pSymbolNameSpace->Find(finish));
       if (!v)
         v = new Variable(pSymbolNameSpace, finish);

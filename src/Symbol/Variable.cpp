@@ -7,7 +7,6 @@
 #include "../Symbol/Expression.h"
 #include "../Symbol/LeftHandSide.h"
 #include "../XMUtil.h"
-#include "boost/lexical_cast.hpp"
 
 // model Variable - this has subscript (families) units
 // and the comment attached to it - inside of expressions
@@ -160,7 +159,7 @@ XMILE_Type Variable::MarkFlows(SymbolNameSpace *sns) {
   i = 0;
   while (sns->Find(name)) {
     ++i;
-    name = basename + "_" + boost::lexical_cast<std::string>(i);
+    name = basename + "_" + std::to_string(i);
   }
   Variable *v = new Variable(sns, name);
   v->SetVariableType(XMILE_Type_FLOW);
