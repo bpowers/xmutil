@@ -1,7 +1,5 @@
 #include "ExpressionList.h"
 
-#include <boost/foreach.hpp>
-
 #include "../XMUtil.h"
 
 ExpressionList::ExpressionList(SymbolNameSpace *sns) : SymbolTableBase(sns) {

@@ -3,7 +3,6 @@
 #include "XMUtil.h"
 
 #include <boost/filesystem.hpp>
-#include <boost/foreach.hpp>
 #include <cstdio>
 
 #include "Model.h"
