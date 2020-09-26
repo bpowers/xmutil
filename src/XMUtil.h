@@ -1,7 +1,6 @@
 #ifndef _XMUTIL_XMUTIL_H
 #define _XMUTIL_XMUTIL_H
 
-#include <cstdio>
 #include <string>
 
 #ifdef WIN32
@@ -58,10 +57,14 @@ inline void __cdecl operator delete[](void *p) {
 #endif
 #endif
 
+// unicode utility functions
+bool OpenUCaseMap();
+void CloseUCaseMap();
+
 // utility functions
-std::string StringFromDouble(double val);
 std::string SpaceToUnderBar(const std::string &s);
-bool StringMatch(const std::string &f, const std::string &s);  // asciii only;
+// ascii only
+bool StringMatch(const std::string &f, const std::string &s);
 double AngleFromPoints(double startx, double starty, double pointx, double pointy, double endx, double endy);
 std::string ReadFile(FILE *file, int &error);
 #endif
