@@ -31,10 +31,10 @@ std::string SpaceToUnderBar(const std::string &s) {
 }
 
 bool StringMatch(const std::string &f, const std::string &s) {
-	if (f.size() != s.size()) {
-		return false;
-	}
-	return strncasecmp(f.c_str(), s.c_str(), f.size()) == 0;
+  if (f.size() != s.size()) {
+    return false;
+  }
+  return strncasecmp(f.c_str(), s.c_str(), f.size()) == 0;
 }
 
 double AngleFromPoints(double startx, double starty, double pointx, double pointy, double endx, double endy) {
