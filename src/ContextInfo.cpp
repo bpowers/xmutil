@@ -36,7 +36,7 @@ Symbol *ContextInfo::GetLHSSpecific(Symbol *dim) {
               if ((*pLHSElmsGeneric)[i] == owner) {
                 // look for pLHSElmsSpecific in the entries for owner as subscript definition - use that position from
                 // v above
-                Variable *mv = static_cast<Variable *>(owner);
+                // Variable *mv = static_cast<Variable *>(owner);
 
                 std::vector<Symbol *> list;
                 Equation::GetSubscriptElements(list, owner);

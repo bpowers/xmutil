@@ -181,7 +181,6 @@
                     '-ggdb',
                     '-Wall',
                     '-Wextra',
-                    '-Wno-unused-variable',
                     '-Wno-unused-parameter',
                     '-fPIC',
                 ],

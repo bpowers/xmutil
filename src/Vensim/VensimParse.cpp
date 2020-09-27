@@ -260,7 +260,7 @@ bool VensimParse::ProcessFile(const std::string &filename, const char *contents,
       break;
     }
     VensimView *view = new VensimView;
-    VensimViewElements &elements = view->Elements();  // we populate this directly
+    // VensimViewElements &elements = view->Elements();  // we populate this directly
 
     _model->AddView(view);
     // next the title
