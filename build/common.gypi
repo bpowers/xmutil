@@ -181,20 +181,9 @@
                     '-ggdb',
                     '-Wall',
                     '-Wextra',
-                    '-Wwrite-strings',
-                    '-Wno-attributes',
                     '-Wno-unused-variable',
-                    '-Wno-sign-compare',
-                    '-Wno-unused-local-typedefs',
                     '-Wno-unused-parameter',
-                    '-Wno-unused-function',
-                    '-Wno-unknown-pragmas',
                     '-fPIC',
-                ],
-                'cxxflags': [
-                    '-std=c++11',
-                    '-Wno-reorder',
-                    '-Wno-conversion-null',
                 ],
                 'libraries': [
 

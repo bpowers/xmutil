@@ -40,7 +40,7 @@ Symbol *ContextInfo::GetLHSSpecific(Symbol *dim) {
 
                 std::vector<Symbol *> list;
                 Equation::GetSubscriptElements(list, owner);
-                for (int k = 0; k < list.size(); k++) {
+                for (size_t k = 0; k < list.size(); k++) {
                   if (list[k] == (*pLHSElmsSpecific)[i]) {
                     std::vector<Symbol *> ours;
                     Equation::GetSubscriptElements(ours, v);
