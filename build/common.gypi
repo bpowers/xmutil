@@ -189,7 +189,6 @@
                     '-Wno-unused-parameter',
                     '-Wno-unused-function',
                     '-Wno-unknown-pragmas',
-                    '-Wno-parentheses',
                     '-fPIC',
                 ],
                 'cxxflags': [
