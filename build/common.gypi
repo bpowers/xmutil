@@ -184,7 +184,6 @@
                     '-Wwrite-strings',
                     '-Wno-attributes',
                     '-Wno-unused-variable',
-                    '-Wno-unused-but-set-variable',
                     '-Wno-sign-compare',
                     '-Wno-unused-local-typedefs',
                     '-Wno-unused-parameter',

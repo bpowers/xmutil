@@ -114,7 +114,6 @@ public:
 
 private:
   Variable *pFamily;
-  int iValue; /* 1 based value */
 };
 class VariableContentVar : public VariableContent {
 public:
