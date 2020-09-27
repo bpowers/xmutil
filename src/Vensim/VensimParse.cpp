@@ -203,7 +203,6 @@ static std::string compress_whitespace(const std::string &s) {
 bool VensimParse::ProcessFile(const std::string &filename, const char *contents, size_t contentsLen) {
   sFilename = filename;
 
-  bool noerr = true;
   mVensimLex.Initialize(contents, contentsLen);
   int endtok = mVensimLex.GetEndToken();
   // now we call the bison built parser which will call back to VensimLex
@@ -240,13 +239,11 @@ bool VensimParse::ProcessFile(const std::string &filename, const char *contents,
                 << sFilename << std::endl;
       std::cerr << "(skipping the associated variable and looking for the next usable content)" << std::endl;
       pSymbolNameSpace->DeleteAllUnconfirmedAllocations();
-      noerr = false;
       if (!FindNextEq(false))
         break;
 
     } catch (...) {
       pSymbolNameSpace->DeleteAllUnconfirmedAllocations();
-      noerr = false;
       if (!FindNextEq(false))
         break;
     }
@@ -260,7 +257,6 @@ bool VensimParse::ProcessFile(const std::string &filename, const char *contents,
     this->mVensimLex.ReadLine(buf, BUFLEN);  // version line
     if (strncmp(buf, "V300 ", 5)) {
       fprintf(stderr, "Unrecognized version - can't read sketch info\n");
-      noerr = false;
       break;
     }
     VensimView *view = new VensimView;
