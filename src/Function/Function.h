@@ -144,10 +144,10 @@ private:
     }                                                                                   \
     ~name(void) {                                                                       \
     }                                                                                   \
-    std::string ComputableName(void) {                                                  \
+    std::string ComputableName(void) override {                                         \
       return cnamea;                                                                    \
     }                                                                                   \
-    std::string ComputableNameInit(void) {                                              \
+    std::string ComputableNameInit(void) override {                                     \
       return cnamei;                                                                    \
     }                                                                                   \
                                                                                         \
