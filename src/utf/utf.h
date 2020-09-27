@@ -15,7 +15,7 @@ enum {
 };
 
 /* Edit .+1,/^$/ | cfn $PLAN9/src/lib9/utf/?*.c | grep -v static |grep -v __ */
-int chartorune(Rune *rune, char *str);
+int chartorune(Rune *rune, const char *str);
 int fullrune(char *str, int n);
 int isalpharune(Rune c);
 int islowerrune(Rune c);

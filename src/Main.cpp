@@ -8,9 +8,6 @@
 #include "Model.h"
 #include "Vensim/VensimParse.h"
 #include "XMUtil.h"
-#include "unicode/ucasemap.h"
-#include "unicode/ustring.h"
-#include "unicode/utypes.h"
 
 #ifdef WITH_UI
 #include <QApplication>
@@ -19,18 +16,6 @@
 #endif
 
 static const char *argv0;
-
-UCaseMap *GlobalUCaseMap;
-bool OpenUCaseMap() {
-  UErrorCode ec = U_ZERO_ERROR;
-  GlobalUCaseMap = ucasemap_open("en", 0, &ec);
-  if (!GlobalUCaseMap)
-    return false;
-  return true;
-}
-void CloseUCaseMap() {
-  ucasemap_close(GlobalUCaseMap);
-}
 
 void cliUsage(void) {
   fprintf(stderr,
@@ -153,9 +138,6 @@ void CheckMemoryTrack(int clear);
 #endif
 
 int main(int argc, char *argv[]) {
-  if (!OpenUCaseMap())
-    return -1;
-
   int ret = 0;
   Model *m = new Model();
 #ifndef WITH_UI
@@ -173,7 +155,6 @@ int main(int argc, char *argv[]) {
   ret = app.exec();
 #endif
   delete m;
-  CloseUCaseMap();
   // CheckMemoryTrack(1) ;
 
   // printf("Size of symbol is %d\n",sizeof(Symbol)) ;

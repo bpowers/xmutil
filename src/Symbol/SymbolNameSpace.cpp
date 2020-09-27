@@ -6,7 +6,6 @@
 
 #include "../XMUtil.h"
 #include "Symbol.h"
-#include "unicode/ucasemap.h"
 
 SymbolNameSpace::SymbolNameSpace(void) {
   assert(sUnconfirmedAllocations.size() == 0);
@@ -68,21 +67,16 @@ bool SymbolNameSpace::Rename(Symbol *sym, const std::string &newname) {
   return false;
 }
 
-// Note GlobalUCaseMap has to have been set for this to wok -
-// not sure if that is thread safe
-//
-// also note that this works on escaped strings - but does not validate
+// note that this works on escaped strings - but does not validate
 // escaping beyond stripping a leading " matched to a terminal " (that is
 // "this is "not a good" string" would become
 // this is "not a good" string
 // which is invalid
 //
-extern UCaseMap *GlobalUCaseMap;
 std::string *SymbolNameSpace::ToLowerSpace(const std::string &sin) {
-  UErrorCode ec = U_ZERO_ERROR;
   int n = sin.length();
-  char *ws = new char[2 * n + 2];
-  char *ws2 = ws + n + 1;  // not aligned
+  char *ws = new char[n + 2];
+  memset(ws, 0, n + 2);
   memcpy(ws, sin.c_str(), n);
   if (*ws == '\"' && ws[n - 1] == '\"' && n > 1) {
     memcpy(ws, sin.c_str() + 1, n - 2);
@@ -114,13 +108,10 @@ std::string *SymbolNameSpace::ToLowerSpace(const std::string &sin) {
       break;
   }
   ws[j] = 0;
-  ucasemap_utf8ToLower(GlobalUCaseMap, ws2, n + 1, ws, j, &ec);
-  if (ec != U_ZERO_ERROR) {
-    delete[] ws;
-    throw "Bad unicode string";
-  }
+  char *ws2 = utf8ToLower(ws, j);
   std::string *s = new std::string(ws2);
   delete[] ws;
+  delete[] ws2;
   return s;
 }
 

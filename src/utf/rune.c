@@ -44,7 +44,7 @@ enum
 };
 
 int
-chartorune(Rune *rune, char *str)
+chartorune(Rune *rune, const char *str)
 {
 	int c, c1, c2, c3;
 	long l;

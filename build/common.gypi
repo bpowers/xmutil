@@ -166,6 +166,7 @@
                 'include_dirs': [
                     './third_party/include',
                     './third_party/linux/include',
+                    './src',
                 ],
                 'link_settings': {
                     'ldflags': [
@@ -173,12 +174,12 @@
                     ],
                     'libraries': [
                         '-lboost_filesystem',
-                        '-licuuc',
                         '-ltinyxml2',
                     ],
                 },
                 'cflags': [
-                     '-O3',
+                    '-O0',
+                    '-ggdb',
                     '-Wall',
                     '-Wextra',
                     '-Wwrite-strings',
