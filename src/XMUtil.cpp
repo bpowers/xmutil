@@ -8,7 +8,7 @@
 
 #include "Model.h"
 #include "Vensim/VensimParse.h"
-#include "utf/utf.h"
+#include "libutf/utf.h"
 
 std::string SpaceToUnderBar(const std::string &s) {
   std::string rval{s};

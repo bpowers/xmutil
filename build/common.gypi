@@ -166,7 +166,6 @@
                 'include_dirs': [
                     './third_party/include',
                     './third_party/linux/include',
-                    './src',
                 ],
                 'link_settings': {
                     'ldflags': [
