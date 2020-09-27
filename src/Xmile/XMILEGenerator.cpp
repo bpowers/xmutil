@@ -342,7 +342,7 @@ void XMILEGenerator::generateModel(tinyxml2::XMLElement *element, std::vector<st
 
     tinyxml2::XMLElement *xelement = xvar;  // usually these are the same - but for non a2a we have element entries
     int eq_ind = 0;
-    int eq_pos = 0;
+    size_t eq_pos = 0;
     std::vector<Symbol *> subs;               // [ship,location]
     std::vector<std::vector<Symbol *>> elms;  // [s1,l1]
     std::vector<std::set<Symbol *>> entries;
@@ -462,10 +462,12 @@ void XMILEGenerator::generateModel(tinyxml2::XMLElement *element, std::vector<st
           std::set<Symbol *> &entry = entries[i];
           Symbol *parent = (*entry.begin())->Owner();
           Symbol *best = parent;
-          if (parent->Subranges() != NULL && static_cast<Variable *>(parent)->Nelm() > entry.size()) {
+          if (parent->Subranges() != NULL &&
+              static_cast<size_t>(static_cast<Variable *>(parent)->Nelm()) > entry.size()) {
             for (Symbol *subrange : *parent->Subranges()) {
-              if (static_cast<Variable *>(subrange)->Nelm() >= entry.size() &&
-                  static_cast<Variable *>(subrange)->Nelm() < static_cast<Variable *>(best)->Nelm()) {
+              const size_t subrange_size = static_cast<size_t>(static_cast<Variable *>(subrange)->Nelm());
+              if (subrange_size >= entry.size() &&
+                  subrange_size < static_cast<size_t>(static_cast<Variable *>(best)->Nelm())) {
                 // does it have them all
                 bool complete = true;
                 std::vector<Symbol *> telms;
