@@ -177,7 +177,7 @@
                     ],
                 },
                 'cflags': [
-                    '-O0',
+                    '-O3',
                     '-ggdb',
                     '-Wall',
                     '-Wextra',
