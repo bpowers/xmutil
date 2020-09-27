@@ -11,16 +11,6 @@ XMILEGenerator::XMILEGenerator(Model *model) {
   _model = model;
 }
 
-bool XMILEGenerator::Generate(FILE *file, std::vector<std::string> &errs) {
-  auto xmile = this->Print(true, errs);
-  if (xmile.size() == 0) {
-    return false;
-  }
-
-  fprintf(file, "%s\n", xmile.c_str());
-  return true;
-}
-
 std::string XMILEGenerator::Print(bool isCompact, std::vector<std::string> &errs) {
   tinyxml2::XMLDocument doc;
 
@@ -156,11 +146,11 @@ void XMILEGenerator::generateSimSpecs(tinyxml2::XMLElement *element, std::vector
 
   if (speed > 0) {
     double duration = (stop - start) / saveper * speed;
-    char dur[32];
-    sprintf(dur, "%g", duration);
-    element->SetAttribute("isee:sim_duration", dur);
-  } else
+    const auto dur = std::to_string(duration);
+    element->SetAttribute("isee:sim_duration", dur.c_str());
+  } else {
     element->SetAttribute("isee:sim_duration", "0");
+  }
 
   tinyxml2::XMLElement *startEle = doc->NewElement("start");
   startEle->SetText(std::to_string(start).c_str());
@@ -603,7 +593,8 @@ void XMILEGenerator::generateView(VensimView *view, tinyxml2::XMLElement *elemen
             tag = "flow";
             break;
           default:
-            fprintf(stderr, "unknown view element type %d\n", type);
+            // fprintf(stderr, "unknown view element type %d\n", type);
+            break;
           }
           if (tag.empty())
             continue;

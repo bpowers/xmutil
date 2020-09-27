@@ -307,7 +307,7 @@ bool VariableContentVar::CheckComputed(Symbol *parent, ContextInfo *info, bool f
     if (!pState->HasMemory())
       return true;
   }
-  fprintf(stderr, "Outputting equations for  %s\n", parent->GetName().c_str());
+  // fprintf(stderr, "Outputting equations for  %s\n", parent->GetName().c_str());
   for (Equation *e : vEquations) {
     info->PushEquation(e);
   }

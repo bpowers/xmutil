@@ -265,26 +265,26 @@ bool Model::OutputComputable(bool wantshort) {
     else
       GenerateCanonicalNames();
     info.iComputeType = CF_initial;
-    fprintf(stderr, "------------- initial time -----------------\n");
+    // fprintf(stderr, "------------- initial time -----------------\n");
     for (Equation *e : vInitialTimeComps) {
       e->OutputComputable(&info);
     }
-    fprintf(stderr, "------------- initialization -----------------\n");
+    // fprintf(stderr, "------------- initialization -----------------\n");
     for (Equation *e : vInitialComps) {
       e->OutputComputable(&info);
     }
     info.iComputeType = CF_active;
-    fprintf(stderr, "------------- Unchanging -----------------\n");
+    // fprintf(stderr, "------------- Unchanging -----------------\n");
     info.iComputeType = CF_active;
     for (Equation *e : vUnchangingComps) {
       e->OutputComputable(&info);
     }
-    fprintf(stderr, "------------- active -----------------\n");
+    // fprintf(stderr, "------------- active -----------------\n");
     for (Equation *e : vActiveComps) {
       e->OutputComputable(&info);
     }
     info.iComputeType = CF_rate;
-    fprintf(stderr, "------------- rates -----------------\n");
+    // fprintf(stderr, "------------- rates -----------------\n");
     for (Equation *e : vRateComps) {
       e->OutputComputable(&info);
     }

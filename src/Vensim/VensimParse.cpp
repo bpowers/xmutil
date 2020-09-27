@@ -218,7 +218,7 @@ bool VensimParse::ProcessFile(const std::string &filename, const char *contents,
           break;
       } else if (rval == '|') {
       } else if (rval == VPTT_groupstar) {
-        fprintf(stderr, "%s\n", mVensimLex.CurToken()->c_str());
+        // fprintf(stderr, "%s\n", mVensimLex.CurToken()->c_str());
         // only change this if a new number
         std::string group_owner;
         char c = mVensimLex.CurToken()->at(0);
@@ -256,7 +256,7 @@ bool VensimParse::ProcessFile(const std::string &filename, const char *contents,
       break;
     this->mVensimLex.ReadLine(buf, BUFLEN);  // version line
     if (strncmp(buf, "V300 ", 5)) {
-      fprintf(stderr, "Unrecognized version - can't read sketch info\n");
+      // fprintf(stderr, "Unrecognized version - can't read sketch info\n");
       break;
     }
     VensimView *view = new VensimView;
