@@ -38,7 +38,7 @@ add_library(libutf
 
 target_compile_options(libutf PRIVATE -fPIC)
 
-add_library(xmutil SHARED
+add_library(xmutil
   src/Function/TableFunction.cpp
   src/Function/Level.cpp
   src/Function/State.cpp
@@ -67,5 +67,6 @@ add_library(xmutil SHARED
   src/Symbol/UnitExpression.cpp
 )
 
+target_compile_options(xmutil PRIVATE -fvisibility=hidden)
 target_link_libraries(xmutil tinyxml2 libutf)
 target_include_directories(xmutil PUBLIC third_party)
