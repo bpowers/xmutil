@@ -13,7 +13,7 @@ add_library(tinyxml2
 target_compile_options(tinyxml2 PRIVATE -fPIC)
 
 
-add_library(libutf
+add_library(utf
   third_party/libutf/rune.c
   third_party/libutf/runestrcat.c
   third_party/libutf/runestrchr.c
@@ -36,7 +36,7 @@ add_library(libutf
   third_party/libutf/utfutf.c
 )
 
-target_compile_options(libutf PRIVATE -fPIC)
+target_compile_options(utf PRIVATE -fPIC)
 
 add_library(xmutil
   src/Function/TableFunction.cpp
@@ -68,5 +68,5 @@ add_library(xmutil
 )
 
 target_compile_options(xmutil PRIVATE -fvisibility=hidden)
-target_link_libraries(xmutil tinyxml2 libutf)
+target_link_libraries(xmutil tinyxml2 utf)
 target_include_directories(xmutil PUBLIC third_party)
