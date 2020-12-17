@@ -6,11 +6,14 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(tinyxml2 STATIC
+add_library(tinyxml2
   third_party/tinyxml2/tinyxml2.cpp
 )
 
-add_library(libutf STATIC
+target_compile_options(tinyxml2 PRIVATE -fPIC)
+
+
+add_library(libutf
   third_party/libutf/rune.c
   third_party/libutf/runestrcat.c
   third_party/libutf/runestrchr.c
@@ -33,7 +36,9 @@ add_library(libutf STATIC
   third_party/libutf/utfutf.c
 )
 
-add_library(xmutil
+target_compile_options(libutf PRIVATE -fPIC)
+
+add_library(xmutil SHARED
   src/Function/TableFunction.cpp
   src/Function/Level.cpp
   src/Function/State.cpp
@@ -61,3 +66,6 @@ add_library(xmutil
   src/Symbol/Variable.cpp
   src/Symbol/UnitExpression.cpp
 )
+
+target_link_libraries(xmutil tinyxml2 libutf)
+target_include_directories(xmutil PUBLIC third_party)
