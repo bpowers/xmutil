@@ -2,10 +2,10 @@
 #ifndef __XMILE_H
 #define __XMILE_H
 
-#include "../../third_party/tinyxml2/tinyxml2.h"
-
 #include <string>
 #include <vector>
+
+#include "../../third_party/tinyxml2/tinyxml2.h"
 
 class Model;
 class VensimView;
