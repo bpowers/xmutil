@@ -1,5 +1,6 @@
 #!/bin/sh
 set -euo pipefail
+set -x
 
 gypfile="${GYPFILE:-XMUtil.gyp}"
 rmout="${rmout:-yes}"
@@ -66,7 +67,7 @@ if [ $xcode = 'yes' ]; then
 elif [ $msvs = 'yes' ]; then
     generator=msvs
 else
-    generator=ninja
+    generator=cmake
 fi
 if [[ $arch_id = '32' &&  $x86 = 'yes' ]]; then
     export CC="${CC:-cc} -m32 -march=prescott"

@@ -38,11 +38,7 @@ import subprocess
 import gyp.common
 import gyp.xcode_emulation
 
-try:
-  # maketrans moved to str in python3.
-  _maketrans = string.maketrans
-except NameError:
-  _maketrans = str.maketrans
+_maketrans = str.maketrans
 
 generator_default_variables = {
   'EXECUTABLE_PREFIX': '',
@@ -987,7 +983,7 @@ def WriteTarget(namer, qualified_target, target_dicts, build_dir, config_to_use,
 
     # XCode settings
     xcode_settings = config.get('xcode_settings', {})
-    for xcode_setting, xcode_value in xcode_settings.viewitems():
+    for xcode_setting, xcode_value in xcode_settings.items():
       SetTargetProperty(output, cmake_target_name,
                         "XCODE_ATTRIBUTE_%s" % xcode_setting, xcode_value,
                         '' if isinstance(xcode_value, str) else ' ')
@@ -1239,7 +1235,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
                             params, user_config)
   else:
     config_names = target_dicts[target_list[0]]['configurations']
-    if params['parallel']:
+    if params['parallel'] and False:
       try:
         pool = multiprocessing.Pool(len(config_names))
         arglists = []
