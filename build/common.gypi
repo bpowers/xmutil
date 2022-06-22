@@ -113,7 +113,7 @@
                     'HAVE_SYS_MALLOC_H'
                 ],
                 'xcode_settings': {
-                    'MACOSX_DEPLOYMENT_TARGET':'10.9',
+                    'MACOSX_DEPLOYMENT_TARGET':'12.4',
                     'CLANG_CXX_LIBRARY': 'libc++',
                     'CLANG_CXX_LANGUAGE_STANDARD': 'c++17',
                     'SDKROOT': 'macosx',
@@ -127,24 +127,28 @@
                         '-Wno-invalid-source-encoding',
                     ],
                     'OTHER_LDFLAGS': [
-
+                        '-L/opt/homebrew/lib',
+                        '-L/opt/homebrew/Cellar/icu4c/70.1/lib'
                     ],
                 },
+                'include_dirs': [
+                    '/opt/homebrew/include',
+                    '/opt/homebrew/Cellar/icu4c/70.1/include',
+                ],
                 'link_settings': {
-                    'ldflags': [
-                        '-L<(cwd)/third_party/mac/lib',
-                    ],
                     'libraries': [
-                        '<(cwd)/third_party/mac/lib/libtinyxml2.a',
-                        '<(cwd)/third_party/mac/lib/libicudata.a',
-                        '<(cwd)/third_party/mac/lib/libicui18n.a',
-                        '<(cwd)/third_party/mac/lib/libicuio.a',
-                        '<(cwd)/third_party/mac/lib/libicule.a',
-                        '<(cwd)/third_party/mac/lib/libiculx.a',
-                        '<(cwd)/third_party/mac/lib/libicutu.a',
-                        '<(cwd)/third_party/mac/lib/libicuuc.a',
-                    ]
-                }
+                        '-licuuc',
+                        '-ltinyxml2',
+                    ],
+                },
+                'cflags': [
+                    '-O3',
+                    '-Wall',
+                    '-Wextra',
+                    '-Wno-unused-parameter',
+                    '-std=c++14',
+                    '-fPIC',
+                ],
             }],
             ['OS=="linux"', {
                 'defines':[
@@ -172,7 +176,6 @@
                     '-fPIC',
                 ],
                 'libraries': [
-
                 ],
             }]
         ],

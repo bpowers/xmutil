@@ -135,7 +135,7 @@ def GetXcodeArchsDefault():
   else:
     XCODE_ARCHS_DEFAULT_CACHE = XcodeArchsDefault(
         '$(ARCHS_STANDARD)',
-        XcodeArchsVariableMapping(['x86_64'], ['x86_64']),
+        XcodeArchsVariableMapping(['arm64'], ['arm64']),
         XcodeArchsVariableMapping(['i386', 'x86_64'], ['i386', 'x86_64']),
         XcodeArchsVariableMapping(
             ['armv7', 'armv7s', 'arm64'],
