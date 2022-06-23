@@ -293,7 +293,7 @@ double AngleFromPoints(double startx, double starty, double pointx, double point
 
 extern "C" {
 // returns NULL on error or a string containing XMILE that the caller now owns
-char *convert_mdl_to_xmile(const char *mdlSource, uint32_t mdlSourceLen, const char *fileName, bool isCompact, int isLongName, bool isAsSectors) {
+char *xmutil_convert_mdl_to_xmile(const char *mdlSource, uint32_t mdlSourceLen, const char *fileName, bool isCompact, int isLongName, bool isAsSectors) {
     Model m{};
 	std::string ext;
 	if (fileName == nullptr) {

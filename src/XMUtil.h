@@ -73,7 +73,11 @@ inline void __cdecl operator delete[](void *p)
 
 extern "C" {
 // returns NULL on error or a string containing XMILE that the caller now owns
-XMUTIL_EXPORT char *convert_mdl_to_xmile(const char *mdlSource, uint32_t mdlSourceLen, const char *fileName, bool isCompact, int isLongName, bool isAsSectors);
+XMUTIL_EXPORT char *xmutil_convert_mdl_to_xmile(const char *mdlSource, uint32_t mdlSourceLen, const char *fileName, bool isCompact, int isLongName, bool isAsSectors);
+// returns a non-owned, null-terminated C-string with any log output from
+// previous xmutil_convert_mdl_to_xmile invocations
+XMUTIL_EXPORT const char *xmutil_get_log(void);
+XMUTIL_EXPORT void xmutil_clear_log(void);
 }
 
 // utility functions
