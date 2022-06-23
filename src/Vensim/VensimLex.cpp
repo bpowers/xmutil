@@ -170,8 +170,15 @@ int VensimLex::NextToken() // also sets token type
    do { 
       c = GetNextChar(false) ;
    }  while(c == ' ' || c == '\t' || c ==  '\n'  || c == '\r') ;  // consume whitespace
-   if(!c)
-      return 0 ;
+   if (!c) {
+     if (sawExplicitEqEnd) {
+       return 0;
+     }
+     // if we're at the end of the buffer and we didn't see the marker for equations ending,
+     // pretend we did (a bunch of mdl files from e.g. sdeverywhere and pysd are hand-written
+     // as just-the-equation/no diagram files).
+     return GetEndToken();
+   }
    sToken.clear() ;
    PushBack(c,false) ;
    c = GetNextChar(true) ;
@@ -222,6 +229,7 @@ int VensimLex::NextToken() // also sets token type
 			  assert(!sBuffer.length());
 			  sBuffer = "///---\\\\";
 			  iCurPos--; // back up - wont be a problem with continuation lines in this case
+			  sawExplicitEqEnd = true;
 			  return VPTT_eqend; // finished normal parse
 		  }
 		break;
@@ -399,6 +407,7 @@ int VensimLex::NextToken() // also sets token type
             assert(!sBuffer.length()) ;
 			sBuffer = "\\\\\\---///";
             iCurPos-- ; // back up - wont be a problem with continuation lines in this case
+            sawExplicitEqEnd = true;
             return VPTT_eqend ; // finished normal parse
          }
          break ;

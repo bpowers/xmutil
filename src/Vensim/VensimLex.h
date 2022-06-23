@@ -46,6 +46,7 @@ private :
    int TestColonKeyword(void) ;
    int ReadTabbedArray(void) ;
    bool bInUnits;
+   bool sawExplicitEqEnd = false;
 
 
 };
