@@ -2,34 +2,37 @@
 
 #include <cstring>
 
+#include "libutf/utf.h"
+
 #include "Unicode.h"
 
-#include "unicode/utypes.h"
-#include "unicode/ustring.h"
-#include "unicode/ucasemap.h"
 
-
-static UCaseMap *GlobalUCaseMap;
 bool OpenUnicode() {
-    UErrorCode ec = U_ZERO_ERROR;
-    GlobalUCaseMap = ucasemap_open("en",0,&ec) ;
-    return GlobalUCaseMap != nullptr;
+  return true;
 }
 
 void CloseUnicode() {
-   ucasemap_close(GlobalUCaseMap) ;
 }
 
 char *utf8ToLower(const char *src, size_t srcLen) {
-    char *dst = new char[srcLen+2];
-    memset(dst, 0, srcLen+2);
+    int n;
+  Rune u;
 
-    UErrorCode ec = U_ZERO_ERROR;
-    ucasemap_utf8ToLower(GlobalUCaseMap, dst, srcLen+1, src, srcLen, &ec);
-    if (ec != U_ZERO_ERROR) {
-      delete[] dst;
-      return nullptr;
-    }
+  size_t dstLen = 0;
+  for (size_t srcOff = 0; srcOff<srcLen && * src> 0 && (n = chartorune(&u, &src[srcOff])); srcOff += n) {
+    const Rune l = tolowerrune(u);
+    dstLen += runelen(l);
+  }
 
-    return dst;
+  char *dst = new char[dstLen + 1];
+  memset(dst, 0, dstLen + 1);
+
+  size_t dstOff = 0;
+  for (size_t srcOff = 0; srcOff<srcLen && * src> 0 && (n = chartorune(&u, &src[srcOff])); srcOff += n) {
+    Rune l = tolowerrune(u);
+    const int size = runetochar(&dst[dstOff], &l);
+    dstOff += size;
+  }
+
+  return dst;
 }
