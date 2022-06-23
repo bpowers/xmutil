@@ -93,7 +93,7 @@ int cliMain(int argc, char *argv[], Model *m) {
         return false;
     }
 
-    auto xmile = convert_mdl_to_xmile(contents.c_str(), contents.size(), path, false, longNames, sectors);
+    auto xmile = xmutil_convert_mdl_to_xmile(contents.c_str(), contents.size(), path, false, longNames, sectors);
     if (xmile == nullptr) {
         log("error trying to convert the mdl to xmile\n");
         return 1;
