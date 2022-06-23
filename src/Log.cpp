@@ -4,7 +4,7 @@
 
 #include "Log.h"
 
-#if defined WIN32 || defined __APPLE__
+#ifdef WIN32
 #define ATTRIBUTE_PRINTF
 #else
 // this gives us better compiler error messages for callers
@@ -12,16 +12,20 @@
 #endif
 
 void ATTRIBUTE_PRINTF
-XmutilLogf(FILE *f, const char* msg_fmt, ...) {
-	va_list args;
-	va_start(args, msg_fmt);
-	vfprintf(f, msg_fmt, args);
-	va_end(args);
-}
-void ATTRIBUTE_PRINTF
 log(const char *msg_fmt, ...) {
-	va_list args;
-	va_start(args, msg_fmt);
-	vprintf(msg_fmt, args);
-	va_end(args);
+    char *msg;
+    va_list args;
+    int ret;
+
+    va_start(args, msg_fmt);
+    ret = vasprintf(&msg, msg_fmt, args);
+    va_end(args);
+
+    if (ret == -1) {
+        fprintf(stderr, "log: vasprintf failed.\n");
+    } else {
+        fprintf(stderr, "%s\n", msg);
+    }
+
+    free(msg);
 }
