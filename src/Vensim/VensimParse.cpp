@@ -235,7 +235,6 @@ bool VensimParse::ProcessFile(const std::string &filename, const char *contents,
 {
    sFilename = filename ;
 
-    if(true) {
        bool noerr = true ;
        mVensimLex.Initialize(contents, contentsLen) ;
        int endtok = mVensimLex.GetEndToken() ;
@@ -412,13 +411,8 @@ bool VensimParse::ProcessFile(const std::string &filename, const char *contents,
 			   }
 		   }
 	   }
-       if (!noerr) {
-          log("warning: writing output file, but we had errors. check the result carefully.\n");
-       }
-       return true ; // got something - try to put something out
-    }
-    else
-       return false ;
+        // if there was an error, don't attempt to write out the file
+        return noerr;
 }
 
 char *VensimParse::GetIntChar(char *s, int& val, char c)
