@@ -38,7 +38,7 @@ class VensimVariableElement : public VensimViewElement
 public:
 	VensimVariableElement(VensimView* view, char *curpos, char*buf, VensimParse* parser);
 	VensimVariableElement(VensimView* view, Variable* var, int x, int y);
-	ElementType Type() { return ElementTypeVARIABLE; }
+	ElementType Type() override { return ElementTypeVARIABLE; }
 	virtual Variable* GetVariable() const override { return _variable; }
 	bool Ghost(std::set<Variable*>* adds);
 	bool CrossLevel() { return _cross_level; }
@@ -68,7 +68,7 @@ public:
 class VensimConnectorElement : public VensimViewElement
 {
 public:
-	ElementType Type() { return ElementTypeCONNECTOR; }
+	ElementType Type() override { return ElementTypeCONNECTOR; }
 	VensimConnectorElement(char *curpos, char*buf, VensimParse* parser);
 	VensimConnectorElement(int from, int to, int x, int y);
 	virtual bool ScalePoints(double xratio, double yratio, int offx, int offy) override;

@@ -8,7 +8,7 @@ class DFunctionTable : public Function
 public:
 	DFunctionTable(SymbolNameSpace* sns) : Function(sns, "TABLE", 5) {}
 	~DFunctionTable(void) {}
-	virtual void OutputComputable(ContextInfo* info, ExpressionList* arg);
+	virtual void OutputComputable(ContextInfo* info, ExpressionList* arg) override;
 	virtual bool IsTableCall() const override { return true; }
 	bool SetTableXAxis(ExpressionList* args) const;
 private:

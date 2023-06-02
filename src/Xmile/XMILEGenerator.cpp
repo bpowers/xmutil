@@ -169,8 +169,8 @@ void XMILEGenerator::generateSimSpecs(tinyxml2::XMLElement* element, std::vector
 	if (speed > 0)
 	{
 		double duration = (stop - start) / saveper * speed;
-		char dur[32];
-		sprintf(dur, "%g", duration);
+		char dur[32] = { 0 };
+		snprintf(dur, 32, "%g", duration);
 		element->SetAttribute("isee:sim_duration", dur);
 	}
 	else
