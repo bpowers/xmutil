@@ -1,11 +1,10 @@
 // Unicode.cpp : Wraps unicode-specific functionality
 
+#include "Unicode.h"
+
 #include <cstring>
 
 #include "libutf/utf.h"
-
-#include "Unicode.h"
-
 
 bool OpenUnicode() {
   return true;
@@ -15,7 +14,7 @@ void CloseUnicode() {
 }
 
 char *utf8ToLower(const char *src, size_t srcLen) {
-    int n;
+  int n;
   Rune u;
 
   size_t dstLen = 0;

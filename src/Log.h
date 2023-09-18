@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 // for use by bison-generated parser
-#define XmutilLogf(file, msgFmt, args...) log(msgFmt, ## args)
+#define XmutilLogf(file, msgFmt, args...) log(msgFmt, ##args)
 
 void log(const char *msgFmt, ...);
 

@@ -3,21 +3,27 @@
 /* function declarations for dynamo - should also probably split off the Vensim ones*/
 #include "../Function/Function.h"
 
-class DFunctionTable : public Function
-{
+class DFunctionTable : public Function {
 public:
-	DFunctionTable(SymbolNameSpace* sns) : Function(sns, "TABLE", 5) {}
-	~DFunctionTable(void) {}
-	virtual void OutputComputable(ContextInfo* info, ExpressionList* arg) override;
-	virtual bool IsTableCall() const override { return true; }
-	bool SetTableXAxis(ExpressionList* args) const;
+  DFunctionTable(SymbolNameSpace *sns) : Function(sns, "TABLE", 5) {
+  }
+  ~DFunctionTable(void) {
+  }
+  virtual void OutputComputable(ContextInfo *info, ExpressionList *arg) override;
+  virtual bool IsTableCall() const override {
+    return true;
+  }
+  bool SetTableXAxis(ExpressionList *args) const;
+
 private:
-
 };
 
-FSubclassMemoryStart(DFunctionInteg, "INTEGRATE", 2, 0b10, 0b01, "integ_active", "integ_init")
-virtual bool IsIntegrator() const override { return true; }
-};
+FSubclassMemoryStart(DFunctionInteg, "INTEGRATE", 2, 0b10, 0b01, "integ_active",
+                     "integ_init") virtual bool IsIntegrator() const override {
+  return true;
+}
+}
+;
 
 FSubclass(DFunctionAbs, "ABS", 1, "ABS");
 FSubclass(DFunctionExp, "EXP", 1, "EXP");
@@ -62,19 +68,21 @@ DFSubclass(DFunctionNPV, "NPV", 4, "NPV");
 
 FSubclass(DFunctionModulo, "MODULO", 2, "MODULO");
 
-FSubclassStart(DFunctionDelayN, "DELAY N", 4, "DELAYN")
-public:
-	virtual void OutputComputable(ContextInfo* info, ExpressionList* arg);
-};
-FSubclassStart(DFunctionSmoothN, "SMOOTH N", 4, "SMTHN")
-public:
-	virtual void OutputComputable(ContextInfo* info, ExpressionList* arg);
-};
+FSubclassStart(DFunctionDelayN, "DELAY N", 4, "DELAYN") public
+    : virtual void OutputComputable(ContextInfo *info, ExpressionList *arg);
+}
+;
+FSubclassStart(DFunctionSmoothN, "SMOOTH N", 4, "SMTHN") public
+    : virtual void OutputComputable(ContextInfo *info, ExpressionList *arg);
+}
+;
 
-
-FSubclassMemoryStart(DFunctionActiveInitial, "ACTIVE INITIAL", 2, 0b10, 0b01, "ai_active", "ai_init")
-virtual bool IsActiveInit() override { return true; }
-};
+FSubclassMemoryStart(DFunctionActiveInitial, "ACTIVE INITIAL", 2, 0b10, 0b01, "ai_active",
+                     "ai_init") virtual bool IsActiveInit() override {
+  return true;
+}
+}
+;
 FSubclass(DFunctionInitial, "INITIAL", 1, "INIT");
 FSubclass(DFunctionReInitial, "REINITIAL", 1, "INIT");
 
@@ -88,26 +96,33 @@ FSubclassKeyword(DFunctionTabbedArray, "TABBED ARRAY", 1);
 FSubclass(DFunctionGetDirectData, "GET DIRECT DATA", 4, "GET_DIRECT_DATA");
 FSubclass(DFunctionGetDataMean, "GET DATA MEAN", 3, "GET_DATA_MEAN");
 
-
-class DFunctionPulse : public Function
-{
+class DFunctionPulse : public Function {
 public:
-	DFunctionPulse(SymbolNameSpace* sns) : Function(sns, "PULSE", 2) {}
-	~DFunctionPulse(void) {}
-	std::string ComputableName(void) { return "Pulse"; }
-	virtual void OutputComputable(ContextInfo* info, ExpressionList* arg);
+  DFunctionPulse(SymbolNameSpace *sns) : Function(sns, "PULSE", 2) {
+  }
+  ~DFunctionPulse(void) {
+  }
+  std::string ComputableName(void) {
+    return "Pulse";
+  }
+  virtual void OutputComputable(ContextInfo *info, ExpressionList *arg);
+
 private:
 };
 
-class DFunctionIfThenElse : public Function
-{
+class DFunctionIfThenElse : public Function {
 public:
-	DFunctionIfThenElse(SymbolNameSpace* sns) : Function(sns, "IF THEN ELSE", 3) { ; }\
-		~DFunctionIfThenElse(void) {}
-	std::string ComputableName(void) { return "IF"; }
-	virtual void OutputComputable(ContextInfo* info, ExpressionList* arg);
+  DFunctionIfThenElse(SymbolNameSpace *sns) : Function(sns, "IF THEN ELSE", 3) {
+    ;
+  }
+  ~DFunctionIfThenElse(void) {
+  }
+  std::string ComputableName(void) {
+    return "IF";
+  }
+  virtual void OutputComputable(ContextInfo *info, ExpressionList *arg);
+
 private:
 };
-
 
 #endif
