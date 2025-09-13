@@ -1,8 +1,8 @@
-/* A Bison parser, made by GNU Bison 3.3.2.  */
+/* A Bison parser, made by GNU Bison 3.8.2.  */
 
 /* Bison interface for Yacc-like parsers in C
 
-   Copyright (C) 1984, 1989-1990, 2000-2015, 2018-2019 Free Software Foundation,
+   Copyright (C) 1984, 1989-1990, 2000-2015, 2018-2021 Free Software Foundation,
    Inc.
 
    This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* As a special exception, you may create a larger work that contains
    part or all of the Bison parser skeleton and distribute that work
@@ -31,8 +31,9 @@
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
-/* Undocumented macros, especially those whose name start with YY_,
-   are private implementation details.  Do not rely on them.  */
+/* DO NOT RELY ON FEATURES THAT ARE NOT DOCUMENTED in the manual,
+   especially those whose name start with YY_ or yy_.  They are
+   private implementation details that can be changed or removed.  */
 
 #ifndef YY_DPYY_DYACC_TAB_HPP_INCLUDED
 # define YY_DPYY_DYACC_TAB_HPP_INCLUDED
@@ -44,34 +45,39 @@
 extern int dpyydebug;
 #endif
 
-/* Token type.  */
+/* Token kinds.  */
 #ifndef YYTOKENTYPE
 # define YYTOKENTYPE
   enum yytokentype
   {
-    DPTT_aux = 258,
-    DPTT_table = 259,
-    DPTT_level = 260,
-    DPTT_init = 261,
-    DPTT_constant = 262,
-    DPTT_eoq = 263,
-    DPTT_groupstar = 264,
-    DPTT_specs = 265,
-    DPTT_save = 266,
-    DPTT_and = 267,
-    DPTT_macro = 268,
-    DPTT_end_of_macro = 269,
-    DPTT_or = 270,
-    DPTT_not = 271,
-    DPTT_ge = 272,
-    DPTT_le = 273,
-    DPTT_ne = 274,
-    DPTT_number = 275,
-    DPTT_symbol = 276,
-    DPTT_units_symbol = 277,
-    DPTT_function = 278,
-    DPTT_dt_to_one = 279
+    YYEMPTY = -2,
+    YYEOF = 0,                     /* "end of file"  */
+    YYerror = 256,                 /* error  */
+    YYUNDEF = 257,                 /* "invalid token"  */
+    DPTT_aux = 258,                /* DPTT_aux  */
+    DPTT_table = 259,              /* DPTT_table  */
+    DPTT_level = 260,              /* DPTT_level  */
+    DPTT_init = 261,               /* DPTT_init  */
+    DPTT_constant = 262,           /* DPTT_constant  */
+    DPTT_eoq = 263,                /* DPTT_eoq  */
+    DPTT_groupstar = 264,          /* DPTT_groupstar  */
+    DPTT_specs = 265,              /* DPTT_specs  */
+    DPTT_save = 266,               /* DPTT_save  */
+    DPTT_and = 267,                /* DPTT_and  */
+    DPTT_macro = 268,              /* DPTT_macro  */
+    DPTT_end_of_macro = 269,       /* DPTT_end_of_macro  */
+    DPTT_or = 270,                 /* DPTT_or  */
+    DPTT_not = 271,                /* DPTT_not  */
+    DPTT_ge = 272,                 /* DPTT_ge  */
+    DPTT_le = 273,                 /* DPTT_le  */
+    DPTT_ne = 274,                 /* DPTT_ne  */
+    DPTT_number = 275,             /* DPTT_number  */
+    DPTT_symbol = 276,             /* DPTT_symbol  */
+    DPTT_units_symbol = 277,       /* DPTT_units_symbol  */
+    DPTT_function = 278,           /* DPTT_function  */
+    DPTT_dt_to_one = 279           /* DPTT_dt_to_one  */
   };
+  typedef enum yytokentype yytoken_kind_t;
 #endif
 
 /* Value type.  */
@@ -79,6 +85,8 @@ extern int dpyydebug;
 
 extern YYSTYPE dpyylval;
 
+
 int dpyyparse (void);
+
 
 #endif /* !YY_DPYY_DYACC_TAB_HPP_INCLUDED  */
