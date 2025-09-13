@@ -90,13 +90,14 @@ int DynamoLex::yylex()
 		  // special things here - try to do almost everything (including INTEG) as a function but some need to call out to different toktypes
 		  dpyylval.sym = DPObject->InsertVariable(sToken);
 		  if (dpyylval.sym->isType() == Symtype_Function) {
-			  Function* f = static_cast<Function*>(static_cast<Symbol*>(dpyylval.sym));
 			  toktype = DPTT_function;
 		  }
 
          break ;
 	  case 0:
 		  toktype = DPTT_eoq;
+		  // Fall through to also clear bInEquation flag when we hit end of input
+		  [[fallthrough]];
 	  case DPTT_eoq:
 		  bInEquation = false;
 		  break;
@@ -372,13 +373,13 @@ int DynamoLex::NextToken() // also sets token type
 				  char c2 = GetNextChar(true);
 				  char c3 = GetNextChar(true);
 				  int rval = 0;
-				  if ((c1 == 'P' || c1 == 'p') && (c2 == 'E' || c2 == 'e') && (c3 == 'C' | c3 == 'c'))
+				  if ((c1 == 'P' || c1 == 'p') && (c2 == 'E' || c2 == 'e') && (c3 == 'C' || c3 == 'c'))
 					  rval = DPTT_specs;
-				  else if ((c1 == 'A' || c1 == 'a') && (c2 == 'V' || c2 == 'v') && (c3 == 'E' | c3 == 'E'))
+				  else if ((c1 == 'A' || c1 == 'a') && (c2 == 'V' || c2 == 'v') && (c3 == 'E' || c3 == 'e'))
 					  rval =  DPTT_save;
-				  else if ((c1 == 'R' || c1 == 'r') && (c2 == 'I' || c2 == 'i') && (c3 == 'N' | c3 == 'n'))
+				  else if ((c1 == 'R' || c1 == 'r') && (c2 == 'I' || c2 == 'i') && (c3 == 'N' || c3 == 'n'))
 					  rval = DPTT_save;
-				  else if ((c1 == 'L' || c1 == 'l') && (c2 == 'O' || c2 == 'o') && (c3 == 'T' | c3 == 't'))
+				  else if ((c1 == 'L' || c1 == 'l') && (c2 == 'O' || c2 == 'o') && (c3 == 'T' || c3 == 't'))
 					  rval = DPTT_save;
 				  if (rval)
 				  {
@@ -540,7 +541,7 @@ bool DynamoLex::TestTokenMatch(const char *tok,bool storeonsuccess)
 
 static void trim_ends(std::string& comment)
 {
-	int i;
+	size_t i;
 	for (i = 0; i < comment.length(); i++)
 	{
 		char c = comment[i];

@@ -275,7 +275,7 @@ void ExpressionTable::SetXAxis(Variable* var, double xmin, double xmax, double i
 		if (xmax > xmin)
 		{
 			int count = std::round((xmax - xmin) / increment + 1);
-			if (count != vYVals.size())
+			if (count != static_cast<int>(vYVals.size()))
 				log("Error the table function %s has %d entries but its usage suggests %d\n", var->GetName().c_str(),  (int)vYVals.size(), count);
 		}
 		else
@@ -286,7 +286,7 @@ void ExpressionTable::SetXAxis(Variable* var, double xmin, double xmax, double i
 		log("Error the table function %s is used in a table without an increment\n", var->GetName().c_str());
 		increment = 1;
 	}
-	for (int i = 0; i < vYVals.size(); i++, xmin += increment)
+	for (size_t i = 0; i < vYVals.size(); i++, xmin += increment)
 		vXVals.push_back(xmin);
 }
 void ExpressionTable::TransformLegacy()

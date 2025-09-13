@@ -256,7 +256,6 @@ bool DynamoParse::ProcessFile(const std::string &filename, const char *contents,
     if(true) {
        bool noerr = true ;
        mDynamoLex.Initialize(contents, contentsLen) ;
-       int endtok = mDynamoLex.GetEndToken() ;
        // now we call the bison built parser which will call back to DynamoLex
        // for the tokenizing - 
        int rval ;
@@ -270,7 +269,7 @@ bool DynamoParse::ProcessFile(const std::string &filename, const char *contents,
                    break ;
              } 
              else if(rval == DPTT_groupstar) {
-				 int depth = 0;
+				 size_t depth = 0;
 				 std::string* cur = mDynamoLex.CurToken();
 				 while (depth < cur->size() && cur->at(depth) == '*')
 					 depth++;
@@ -278,7 +277,7 @@ bool DynamoParse::ProcessFile(const std::string &filename, const char *contents,
 				ModelGroup* group_owner = NULL;
 				 for (std::vector<ModelGroup*>::const_iterator it = _model->Groups().end(); it-- != _model->Groups().begin();)
 				 {
-					 if ((*it)->iDepth < depth)
+					 if ((*it)->iDepth < static_cast<int>(depth))
 					 {
 						 group_owner = (*it);
 						 break;

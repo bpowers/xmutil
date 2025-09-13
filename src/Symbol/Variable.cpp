@@ -213,7 +213,6 @@ XMILE_Type Variable::MarkTypes(SymbolNameSpace* sns)
 			else if (exp->GetType() == EXPTYPE_Function)
 			{
 				Function* function = static_cast<ExpressionFunction*>(exp)->GetFunction();
-				bool mrl = function->IsMemoryless();
 				if (function->IsDelay())
 					this->MarkUsesMemory();
 			}

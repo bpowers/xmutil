@@ -15,8 +15,8 @@ namespace tinyxml2 {class XMLElement; }
 class ModelGroup
 {
 public:
-	ModelGroup(const std::string& name, ModelGroup* owner) : sName(name), pOwner(owner), iDepth(0), pModel(NULL), pModule(NULL),pVariables(NULL) {}
-	ModelGroup(const std::string& name, ModelGroup* owner, int depth) : sName(name), pOwner(owner), iDepth(depth), pModel(NULL), pModule(NULL), pVariables(NULL) {}
+	ModelGroup(const std::string& name, ModelGroup* owner) : sName(name), pOwner(owner), pModule(NULL), pModel(NULL), pVariables(NULL), iDepth(0) {}
+	ModelGroup(const std::string& name, ModelGroup* owner, int depth) : sName(name), pOwner(owner), pModule(NULL), pModel(NULL), pVariables(NULL), iDepth(depth) {}
 	std::vector<Variable*> vVariables;
 	std::string sName;
 	ModelGroup* pOwner;
