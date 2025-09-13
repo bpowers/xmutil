@@ -313,11 +313,14 @@ char *xmutil_convert_mdl_to_xmile(const char *mdlSource, uint32_t mdlSourceLen, 
       m.AttachStragglers();
     }
 
-    // TODO: expose errs
+    // Collect any errors produced while generating XMILE and log them
     std::vector<std::string> errs;
     std::string xmile = m.PrintXMILE(isCompact, errs, xscale, yscale);
 
-    if (errs.size() != 0) {
+    if (!errs.empty()) {
+      for (const auto &e : errs) {
+        log("XMILE generation error: %s\n", e.c_str());
+      }
       return nullptr;
     }
 

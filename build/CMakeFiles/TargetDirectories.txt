@@ -1,0 +1,5 @@
+/home/bpowers/src/xmutil/build/CMakeFiles/tinyxml2.dir
+/home/bpowers/src/xmutil/build/CMakeFiles/utf.dir
+/home/bpowers/src/xmutil/build/CMakeFiles/xmutil.dir
+/home/bpowers/src/xmutil/build/CMakeFiles/edit_cache.dir
+/home/bpowers/src/xmutil/build/CMakeFiles/rebuild_cache.dir

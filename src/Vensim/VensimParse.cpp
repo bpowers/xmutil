@@ -288,6 +288,10 @@ bool VensimParse::ProcessFile(const std::string &filename, const char *contents,
         break;
 
     } catch (...) {
+      // Log unknown exceptions to aid diagnosis and ensure visibility via C API
+      log("Unknown exception while parsing (Vensim) at line %d position %d in file %s\n", mVensimLex.LineNumber(),
+          mVensimLex.Position(), sFilename.c_str());
+      log(".... skipping the associated variable and looking for the next usable content.\n");
       pSymbolNameSpace->DeleteAllUnconfirmedAllocations();
       noerr = false;
       if (!FindNextEq(false))
