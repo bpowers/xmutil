@@ -14,6 +14,7 @@ class VensimViewElement
 {
 public:
 	enum ElementType { ElementTypeVARIABLE, ElementTypeVALVE, ElementTypeCOMMENT, ElementTypeCONNECTOR};
+	virtual ~VensimViewElement() = default;  // Virtual destructor for proper polymorphic deletion
 	virtual ElementType Type() = 0;
 	virtual bool ScalePoints(double xratio, double yratio, int offx, int offy) { return false; }
 	virtual Variable* GetVariable() const { return NULL; }
@@ -87,6 +88,14 @@ private:
 class VensimView : public View
 {
 public:
+	~VensimView() {
+		// Clean up dynamically allocated elements
+		for (auto* element : vElements) {
+			delete element;
+		}
+		vElements.clear();
+	}
+
 	const std::string& Title() { return sTitle; }
 	void SetTitle(const std::string& title) { sTitle = title; }
 	void ReadView(VensimParse* parser, char* buf);
