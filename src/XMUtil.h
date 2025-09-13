@@ -3,6 +3,7 @@
 
 #include <string>
 #include <cstdint>
+#include <cstring>
 
 #include "Log.h"
 
