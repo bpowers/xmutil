@@ -245,7 +245,7 @@ void MDLGenerator::EmitVariableRecord(std::string &out, int uid, VensimVariableE
   int shape = 3;
   if (e->Attached())
     shape |= (1 << 5);
-  int bits = e->Ghost(nullptr) ? 2 : 3;
+  int bits = e->Ghost(nullptr, false) ? 2 : 3;
   out += "10," + std::to_string(uid) + "," + mdl::FormatMDLIdent(e->GetVariable()->GetName()) + ",";
   out += std::to_string(e->X()) + "," + std::to_string(e->Y()) + "," + std::to_string(e->Width()) + "," +
          std::to_string(e->Height()) + ",";

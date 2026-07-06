@@ -101,10 +101,10 @@ VensimValveElement::VensimValveElement(char *curpos, char *buf, VensimParse *par
     _attached = false;
 }
 
-bool VensimVariableElement::Ghost(std::set<Variable *> *adds, bool update) {
+bool VensimVariableElement::Ghost(std::set<Variable *, SymbolNameLess> *adds, bool update) {
   if (_ghost && !_cross_level) {
     if (adds) {
-      std::set<Variable *>::iterator it = adds->find(this->GetVariable());
+      std::set<Variable *, SymbolNameLess>::iterator it = adds->find(this->GetVariable());
       if (it != adds->end()) {
         if (update) {
           adds->erase(it);
