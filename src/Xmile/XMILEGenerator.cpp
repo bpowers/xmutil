@@ -420,12 +420,21 @@ void XMILEGenerator::generateEquation(Variable *var, tinyxml2::XMLDocument *doc,
     }
     // skip it altogether if it is an A FUNCTION OF equation
     std::string rhs = eqn->RHSFormattedXMILE(var, subs, dims, false);
+    // Standalone graphical-function variable: the equation's RHS *is* the
+    // ExpressionTable (token '(' from VensimParse::AddTable, mirrored by the
+    // XMILE reader for an <aux> carrying only <gf>). Emitting the placeholder
+    // "0+0" <eqn> body would make the re-parse misread the variable as a
+    // WITH LOOKUP form. Suppress <eqn> here; the <gf> emission below carries
+    // the full meaning.
+    bool standalone_gf = eqn->GetExpression() && eqn->GetExpression()->GetType() == EXPTYPE_Table;
     if (eq_count <= 1 || rhs.size() < 42 || rhs.substr(28, 13) != "A FUNCTION OF") {
-      tinyxml2::XMLElement *xeqn = doc->NewElement("eqn");
-      xelement->InsertEndChild(xeqn);
-      if (wrap_init)
-        rhs = "INIT(" + rhs + ")";
-      xeqn->SetText(rhs.c_str());
+      if (!standalone_gf) {
+        tinyxml2::XMLElement *xeqn = doc->NewElement("eqn");
+        xelement->InsertEndChild(xeqn);
+        if (wrap_init)
+          rhs = "INIT(" + rhs + ")";
+        xeqn->SetText(rhs.c_str());
+      }
 
       // it it is active init we need to store that separately
       if (eqn->IsActiveInit() || !init_eqns.empty()) {
@@ -471,11 +480,14 @@ void XMILEGenerator::generateEquation(Variable *var, tinyxml2::XMLDocument *doc,
             }
           }
         }
+        // Table samples use ShortestDouble, not StringFromDouble's lossy "%g":
+        // a re-parse must recover the identical doubles or the round trip
+        // drifts. Sketch coordinates elsewhere can stay on "%g".
         std::string xstr;
         for (size_t i = 0; i < xvals->size(); i++) {
           if (i)
             xstr += ",";
-          xstr += StringFromDouble((*xvals)[i]);
+          xstr += ShortestDouble((*xvals)[i]);
         }
         xpts->SetText(xstr.c_str());
 
@@ -491,7 +503,7 @@ void XMILEGenerator::generateEquation(Variable *var, tinyxml2::XMLDocument *doc,
               ymax = (*yvals)[i];
           } else
             ymin = ymax = (*yvals)[i];
-          ystr += StringFromDouble((*yvals)[i]);
+          ystr += ShortestDouble((*yvals)[i]);
         }
         ypts->SetText(ystr.c_str());
 
@@ -1013,21 +1025,39 @@ void XMILEGenerator::generateView(VensimView *view, tinyxml2::XMLElement *elemen
                 }
               }
             }
-            if (count < 2 || toind < 0) {
+            if (count < 2) {
+              // Neither pipe endpoint resolved to a stock or cloud connector
+              // record in the model -- synthesize a straight horizontal pipe
+              // centered on the flow so the emitted <pts> is well-formed.
               xpt[0] = vele->X() - 150;
               xpt[1] = vele->X() + 25;
               ypt[0] = ypt[1] = vele->Y();
               toind = 1;
             } else {
-              if (xpt[0] == xpt[1]) {
-                // vertical put the ys at the achors
-                ypt[0] = yanchor[0];
-                ypt[1] = yanchor[1];
-              } else {
-                // horizontal put the xs at the achors
-                xpt[0] = xanchor[0];
-                xpt[1] = xanchor[1];
-              }
+              // When both endpoints are clouds (toind stays -1 because no
+              // stock was matched), the flow has no canonical direction in the
+              // engine's stock-flow graph. Default to toind=1 so the emitted
+              // <pts> records the dst position last; both endpoints carry
+              // their actual cloud coordinates from xanchor.
+              if (toind < 0)
+                toind = 1;
+              // Each pipe endpoint sits at the center of the element it connects
+              // to (the stock or the cloud), on BOTH axes. The connector's own
+              // point (cele->X/Y) is a routing waypoint -- for a straight pipe it
+              // is the midpoint between the valve and the endpoint, not the
+              // endpoint itself -- so using it for either axis pulls the pipe end
+              // halfway toward the valve and the diagram creeps on every round
+              // trip. Anchoring both coordinates at the element center makes the
+              // emitted <pts> depend only on the (stable) element positions, so
+              // the geometry is a fixpoint. (The earlier code kept the connector
+              // coordinate on one axis and only worked for near-horizontal pipes,
+              // where the routing y happens to fall close to the endpoint y; a
+              // vertical pipe was misdetected via the exact xpt[0]==xpt[1] test
+              // and drifted.)
+              xpt[0] = xanchor[0];
+              xpt[1] = xanchor[1];
+              ypt[0] = yanchor[0];
+              ypt[1] = yanchor[1];
             }
             tinyxml2::XMLElement *xpts = doc->NewElement("pts");
             xvar->InsertEndChild(xpts);
