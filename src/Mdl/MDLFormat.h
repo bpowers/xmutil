@@ -70,8 +70,11 @@ std::string WrapEquation(const std::string &eqn, size_t maxLineLen);
 // "[(xmin,ymin)-(xmax,ymax)],(x0,y0),(x1,y1),...". The range box is computed
 // from the min/max of the stored x/y vectors because xmutil's parsed range
 // (ExpressionTable::AddRange) is unreliable. With no points the box collapses to
-// "[(0,0)-(0,0)]". The extrapolation flag is intentionally not emitted (v1
-// fidelity gap; the comparator ignores it).
+// "[(0,0)-(0,0)]". The body carries no extrapolation flag: MDL has none at the
+// definition level. The extrapolate kind is preserved instead by the WRITER, as
+// a TABXL(table, x) call site at each reference (see MDLGenerator's
+// _extrapolateLookups); a standalone extrapolating table with no call site
+// cannot be marked and the writer warns that it is emitted clamped to continuous.
 std::string WriteLookupBody(ExpressionTable *table);
 
 }  // namespace mdl

@@ -3,6 +3,8 @@
 #define __MDLGENERATOR_H
 
 #include <string>
+#include <unordered_set>
+#include <vector>
 
 class Model;
 class ModelGroup;
@@ -10,9 +12,11 @@ class Expression;
 class ExpressionFunction;
 class ExpressionLogical;
 class ExpressionVariable;
+class Symbol;
 class SymbolList;
 class SymbolNameSpace;
 class Variable;
+class VensimViewElement;
 class VensimVariableElement;
 class VensimValveElement;
 class VensimCommentElement;
@@ -46,8 +50,8 @@ private:
   // before the main equation section (the parser defines a macro's name in the
   // main namespace as it reads the block, so callers in the main equations must
   // see it first). The body is the macro's local namespace, emitted via
-  // GenerateVariableEntry -- with the reader-synthesized "<stock> net flow"
-  // variables suppressed, exactly as in the main equation loop.
+  // GenerateVariableEntry -- with the reader-synthesized net-flow carriers of
+  // that namespace suppressed, exactly as in the main equation loop.
   void GenerateMacros(std::string &out);
   // Emit the MAIN model's equation section group-by-group: for each ModelGroup
   // (skipping the .Control group, emitted by GenerateControl) emit its banner
@@ -73,11 +77,16 @@ private:
   std::string GroupBannerPath(ModelGroup *group) const;
   // Re-serialize the model's VensimView geometry to Vensim sketch records. Each
   // VensimView emits the \\\---/// / V300 / *Title / $font framing then one
-  // record per non-NULL element (the element's array index is the on-wire UID),
-  // with a single ///---\\\ terminator after all views. A model with no
-  // VensimView emits one empty frame so the terminator -- and thus the trailing
-  // settings section -- still re-parses; no geometry is fabricated.
+  // record per non-NULL, non-suppressed element (the element's array index is
+  // the on-wire UID), with a single ///---\\\ terminator after all views. A
+  // model with no VensimView emits one empty frame so the terminator -- and thus
+  // the trailing settings section -- still re-parses; no geometry is fabricated.
   void GenerateSketch(std::string &out);
+  // The UID slots of `elems` whose records GenerateSketch must leave out, so the
+  // emitted sketch describes only what the emitted equation section defines. See
+  // the definition for the three rules and why the surviving records keep their
+  // UIDs instead of being renumbered.
+  std::vector<bool> SuppressedSketchSlots(const std::vector<VensimViewElement *> &elems) const;
   // Per-element record emitters. Each appends one '\n'-terminated record line in
   // the exact field order the VensimView parser reads (VensimView.cpp). uid is
   // the element's array index in the view (VensimConnectorElement From()/To()
@@ -100,11 +109,12 @@ private:
   // Emit a stock as INTEG(net_flow, init), one entry per stored equation so an
   // arrayed stock keeps each element's own net flow and initial value. The init
   // (arg 1) is rendered straight from the stored INTEG node. The net flow (arg 0)
-  // is too when it is the user's own +/- of named flows; when the reader
-  // synthesized a "<stock> net flow" variable instead (the non-clean case, and
-  // every per-element stock), its original expression is inlined back in so the
-  // emitted .mdl matches the user's input and re-parses without duplicating the
-  // synthetic flow. See EmitStockEntry's body for the full rationale.
+  // is too when it is the user's own +/- of named flows; when MarkStockFlows
+  // synthesized a carrier variable instead, its original expression is inlined
+  // back in so the emitted .mdl matches the user's input and re-parses without
+  // duplicating the carrier. The carrier is identified by the provenance flag
+  // Variable::SynthesizedNetFlow, never by its name -- a modeler may legally name
+  // a flow "<stock> net flow". See EmitStockEntry's body for the full rationale.
   void EmitStockEntry(std::string &out, Variable *v);
   // Emit a dimension/subrange definition "name: e1, e2, e3[ -> map] ~~|".
   void EmitDimensionEntry(std::string &out, Variable *v);
@@ -138,7 +148,44 @@ private:
   // helpers unwrap internally.
   std::string ParenIfNecessary(Expression *parent, Expression *child, bool isRightChild, const std::string &childStr);
 
+  // Record that the emitted equation text spells out this symbol's name, so a
+  // sketch record may legally name it. A non-Variable symbol is ignored: only a
+  // Variable is what VensimParse::FindVariable will hand a re-read sketch
+  // record.
+  void NoteVariableNamed(Symbol *s);
+  // Warn (to the log/stderr channel, never the MDL text) when an emitted line is
+  // longer than the Vensim sketch/settings reader's fixed line buffer, which
+  // truncates rather than growing. `kind` names the line, `what` the element it
+  // came from.
+  void WarnIfLineTooLong(const std::string &line, const char *kind, const std::string &what);
+
+  // Populate _extrapolateLookups with every standalone graphical-function
+  // variable whose defining ExpressionTable is marked extrapolating. Called once
+  // at the start of Print, before any equation is rendered.
+  void BuildExtrapolateLookups();
+  // After all equations are rendered, warn (to the log/stderr channel, never the
+  // MDL text) for each extrapolating standalone lookup that had NO call site: MDL
+  // has no definition-level extrapolate flag, so without a TABXL call site to
+  // mark it the table is emitted clamped to continuous.
+  void WarnUnreferencedExtrapolate();
+
   Model *_model;
+  // Standalone extrapolating lookup variables. A LOOKUP(table, x) call to one is
+  // emitted as TABXL(table, x) so re-import restores the extrapolate kind (a
+  // plain table(x) re-imports as continuous). Populated by BuildExtrapolateLookups.
+  std::unordered_set<Variable *> _extrapolateLookups;
+  // The subset of _extrapolateLookups actually reached by a call site (and thus
+  // emitted as TABXL). Filled during rendering; the complement is warned about.
+  std::unordered_set<Variable *> _referencedExtrapolate;
+  // Variables whose name the emitted equation text actually spells out -- as a
+  // definition's left-hand side, an expression reference, a subscript, or a
+  // dimension element. Re-reading the emitted .mdl interns exactly these names,
+  // so this is the set a sketch record may legally name (GenerateSketch drops
+  // the rest). It is RECORDED while the equations render rather than predicted
+  // from a variable's type, so every reason the equation section has for
+  // withholding a variable is honored here without being restated -- which is
+  // why Print emits the sketch after all three equation passes.
+  std::unordered_set<Variable *> _namedInEquations;
 };
 
 #endif  // __MDLGENERATOR_H

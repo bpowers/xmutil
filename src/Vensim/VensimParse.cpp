@@ -419,7 +419,7 @@ bool VensimParse::ProcessFile(const std::string &filename, const char *contents,
               _model->SetIntegrationType(it);
             } else if (type == 22)  // units equialences
             {
-              _model->UnitEquivs().push_back(curpos);
+              _model->UnitEquivs().push_back(UnitEquiv::ParseMdlPayload(curpos));
             }
           }
           break;
@@ -686,6 +686,23 @@ Expression *VensimParse::FunctionExpression(Function *func, ExpressionList *earg
 Expression *VensimParse::LookupExpression(ExpressionVariable *var, ExpressionList *args) {
   if (args->Length() == 1)
     return new ExpressionLookup(pSymbolNameSpace, var, args->GetExp(0));
+  // TABXL(table, x) is the extrapolating-lookup call the MDL writer emits to
+  // preserve a graphical function's extrapolate kind (MDL has no
+  // definition-level flag). Rewrite it to a lookup on `table` with input `x` and
+  // flag it so the post-parse CheckTableUses pass marks table's GF extrapolating;
+  // otherwise it would degrade to an UnknownFunction and lose the lookup
+  // semantics. The first argument must be a bare variable reference (the table).
+  if (args->Length() == 2 && args->GetExp(0)->GetType() == EXPTYPE_Variable) {
+    std::string *canon = SymbolNameSpace::ToLowerSpace(var->GetVariable()->GetName());
+    bool isTabxl = *canon == "tabxl";
+    delete canon;
+    if (isTabxl) {
+      ExpressionVariable *tableVar = static_cast<ExpressionVariable *>(args->GetExp(0));
+      ExpressionLookup *lk = new ExpressionLookup(pSymbolNameSpace, tableVar, args->GetExp(1));
+      lk->SetExtrapolate();
+      return lk;
+    }
+  }
   // really an error so we use uknown function
   const std::string &name = var->GetVariable()->GetName();
   Function *f = new UnknownFunction(new SymbolNameSpace(), name, args->Length());

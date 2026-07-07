@@ -101,6 +101,10 @@
         ],
         'sources': [
             './src/Main.cpp',
+            # CLI-only: the wasm and library entry points never derive an
+            # output filename, so this stays out of common_sources.
+            './src/OutputPath.h',
+            './src/OutputPath.cpp',
             '<@(common_sources)',
         ],
         'defines' : [
@@ -118,8 +122,13 @@
         'mac_bundle': 0,
         'sources': [
             '<@(common_sources)',
+            # Main.cpp is replaced by the harness, so the CLI-only sources it
+            # depends on have to be listed here too.
+            './src/OutputPath.h',
+            './src/OutputPath.cpp',
             './test/TestHarness.cpp',
             './test/UnicodeTest.cpp',
+            './test/OutputPathTest.cpp',
             './test/mdl/ModelComparator.cpp',
             './test/mdl/RoundTrip.cpp',
             './test/mdl/MDLGeneratorTest.cpp',
@@ -140,13 +149,19 @@
             './test/xmile/XmileFunctionsTest.cpp',
             './test/xmile/EquationParseTest.cpp',
             './test/xmile/AuxRoundTripTest.cpp',
+            './test/xmile/SimSpecsRoundTripTest.cpp',
             './test/xmile/StockFlowRoundTripTest.cpp',
             './test/xmile/ArrayRoundTripTest.cpp',
             './test/xmile/LookupRoundTripTest.cpp',
             './test/xmile/FreeTextSanitizeRoundTripTest.cpp',
+            './test/xmile/ModelUnitsRoundTripTest.cpp',
+            './test/xmile/ExtrapolateRoundTripTest.cpp',
             './test/xmile/ViewRoundTripTest.cpp',
+            './test/xmile/GroupRoundTripTest.cpp',
+            './test/xmile/SingleModelNormalizationTest.cpp',
             './test/xmile/CorpusRoundTripTest.cpp',
             './test/xmile/XmileCorpusTest.cpp',
+            './test/xmile/FixpointTest.cpp',
             './test/xmile/ErrorRejectTest.cpp',
             './test/xmile/BuiltinNameCollisionTest.cpp',
             './test/xmile/PiKeywordTest.cpp',

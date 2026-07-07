@@ -1,7 +1,6 @@
 #include "MDLGenerator.h"
 
 #include <algorithm>
-#include <cctype>
 #include <string>
 #include <unordered_set>
 
@@ -39,63 +38,98 @@ Expression *Unwrap(Expression *e) {
   return e;
 }
 
-// Binary-operator precedence, or 100 for any node that is not a binary operator
-// (so it never forces a child to be parenthesized).
+// A binary operator's grammar precedence level together with that level's
+// declared associativity. The two travel together so a node can never be placed
+// at one level for the precedence comparison and then judged by a different
+// level's associativity: ParenIfNecessary needs both facts about the same node,
+// and both come out of the single switch below.
+struct MdlBinaryOp {
+  int precedence;   // kNotOperator for a node that is not a binary operator
+  bool rightAssoc;  // %right in the grammar; false for every %left level
+};
+
+// Precedence reported by a node that carries no operator of its own: above every
+// real level, so such a node never forces a child to be parenthesized and never
+// gets claimed by a neighbouring operator. The binary and unary classifications
+// below share this one constant so they cannot drift apart.
+constexpr int kNotOperator = 100;
+constexpr MdlBinaryOp kNotBinaryOp = {kNotOperator, false};
+
+// Binary-operator precedence and associativity, read off the *xmutil* Vensim
+// grammar's precedence block (src/Vensim/VYacc.y:76-82, low to high):
 //
-// The values follow the *xmutil* Vensim grammar (src/Vensim/VYacc.y, low to
-// high: + - < :OR: < comparison < :AND: < * / < ^), NOT simlin's writer.rs
-// values. The walker re-parses through xmutil's own parser, so parentheses must
-// be derived from the precedence that parser will use; simlin's AST came from a
-// different parser with a different precedence lattice. The notable
-// xmutil-specific orderings: comparison binds looser than + and -, :AND: binds
-// tighter than comparison, and :OR: binds looser than comparison.
-int MdlPrecedence(Expression *e) {
+//   1  %left  '-' '+'
+//   2  %left  VPTT_or                                   (:OR:)
+//   3  %left  '=' '<' '>' VPTT_le VPTT_ge VPTT_ne       (comparisons)
+//   4  %left  VPTT_and                                  (:AND:)
+//   5  %left  '*' '/'
+//   6  %left  VPTT_not                                  (:NOT:, unary)
+//   7  %right '^'
+//
+// These are NOT simlin's writer.rs values. The walker re-parses through
+// xmutil's own parser, so parentheses must be derived from the precedence that
+// parser will use; simlin's AST came from a different parser with a different
+// precedence lattice. The notable xmutil-specific orderings: a comparison binds
+// TIGHTER than + and - (so bare `a + b < c` parses as `a + (b < c)`, not the
+// `(a + b) < c` most languages would give), :AND: binds tighter still, and :OR:
+// binds looser than a comparison.
+//
+// Levels 1..5 and 7 are the binary ones. Level 6 (:NOT:) and unary minus are
+// unary productions -- `VPTT_not exp` and `'-' exp` -- and are classified by
+// MdlUnaryPrecedence instead, so they report kNotOperator here. ^ is the grammar's
+// only %right level.
+MdlBinaryOp MdlBinaryInfo(Expression *e) {
   e = Unwrap(e);
   if (!e)
-    return 100;
+    return kNotBinaryOp;
   if (e->GetType() == EXPTYPE_Operator) {
     const char *op = e->GetOperator();
     if (op && *op) {  // binary arithmetic has an operator and an empty "before"
       switch (op[0]) {
       case '+':
       case '-':
-        return 1;
+        return {1, false};
       case '*':
       case '/':
-        return 5;
+        return {5, false};
       case '^':
-        return 7;
+        return {7, true};
       }
     }
-    return 100;  // a paren or unary-minus node is not a binary parent
+    return kNotBinaryOp;  // a paren or unary-minus node is not a binary parent
   }
   if (e->GetType() == EXPTYPE_Logical) {
     int o = static_cast<ExpressionLogical *>(e)->LogicalOperator();
     if (o == VPTT_or)
-      return 2;
+      return {2, false};
     if (o == '=' || o == '<' || o == '>' || o == VPTT_le || o == VPTT_ge || o == VPTT_ne)
-      return 3;
+      return {3, false};
     if (o == VPTT_and)
-      return 4;
-    return 100;  // VPTT_not is unary
+      return {4, false};
+    return kNotBinaryOp;  // VPTT_not is unary
   }
-  return 100;
+  return kNotBinaryOp;
+}
+
+int MdlPrecedence(Expression *e) {
+  return MdlBinaryInfo(e).precedence;
 }
 
 bool IsBinaryOp(Expression *e) {
-  return MdlPrecedence(e) < 100;
+  return MdlPrecedence(e) < kNotOperator;
 }
 
-// Grammar precedence of a unary node, or 100 for a non-unary node. The xmutil
-// grammar (src/Vensim/VYacc.y:76-82, low to high) places unary minus at the
-// LOWEST level (1, the `'-' exp` rule shares the level of binary +/-) and :NOT:
-// at level 6. A unary node binds looser than the operators above it, so a unary
-// left operand of a tighter binary parent must be parenthesized or it re-parses
-// the wrong way (e.g. `-a ^ b` parses as -(a ^ b)).
+// Grammar precedence of a unary node, or kNotOperator for a non-unary node. The
+// xmutil grammar (src/Vensim/VYacc.y:76-82, low to high) places unary minus at
+// the LOWEST level (1: the `'-' exp` rule takes its precedence from the '-' it
+// shares with binary +/-) and :NOT: at level 6. A unary production extends
+// rightward over everything that binds tighter than its own level -- with a
+// tighter operator as lookahead the parser shifts instead of reducing, so
+// `-a ^ b` is -(a ^ b) and `:NOT: a ^ b` is :NOT: (a ^ b).
 int MdlUnaryPrecedence(Expression *e) {
   e = Unwrap(e);
   if (!e)
-    return 100;
+    return kNotOperator;
   if (e->GetType() == EXPTYPE_Operator) {
     const char *op = e->GetOperator();
     const char *before = e->GetBefore();
@@ -104,14 +138,38 @@ int MdlUnaryPrecedence(Expression *e) {
   }
   if (e->GetType() == EXPTYPE_Logical && static_cast<ExpressionLogical *>(e)->LogicalOperator() == VPTT_not)
     return 6;  // :NOT:
-  return 100;
+  return kNotOperator;
 }
 
 // A unary operator is either arithmetic unary minus or a logical :NOT: --
-// exactly the nodes MdlUnaryPrecedence classifies below 100, mirroring the
-// IsBinaryOp/MdlPrecedence pair above.
+// exactly the nodes MdlUnaryPrecedence classifies below kNotOperator, mirroring
+// the IsBinaryOp/MdlPrecedence pair above.
 bool IsUnaryOp(Expression *e) {
-  return MdlUnaryPrecedence(e) < 100;
+  return MdlUnaryPrecedence(e) < kNotOperator;
+}
+
+// The unary precedence an ALREADY-RENDERED operand re-parses with, which is not
+// always its structural one. VensimParse::OperatorExpression folds `'-' <number>`
+// into a single negative ExpressionNumber, and FormatMDLNumber renders that sign
+// straight back out, so an emitted `-2` reaches the parser as the `'-' exp`
+// production again even though the node itself is a plain literal. Any operand
+// that renders with a leading sign therefore groups exactly like a unary-minus
+// node and has to be treated as one when deciding parentheses.
+//
+// The test is on the rendered text and not on the sign of the value, because the
+// two disagree: FormatMDLNumber renders the -1e38 :NA: sentinel as ":NA:", which
+// has no sign for a following operator to re-attach to. A binary node is
+// excluded because ParenIfNecessary judges those by the whole-node binary rule,
+// which already accounts for the leading operand nested inside them.
+int MdlRenderedUnaryPrecedence(Expression *e, const std::string &rendered) {
+  int structural = MdlUnaryPrecedence(e);
+  if (structural != kNotOperator)
+    return structural;
+  if (IsBinaryOp(e))
+    return kNotOperator;
+  if (!rendered.empty() && rendered[0] == '-')
+    return 1;  // the rendered sign re-parses as unary minus
+  return kNotOperator;
 }
 
 // Map a logical/comparison operator token to its Vensim spelling.
@@ -140,44 +198,39 @@ const char *LogicalSymbol(int oper) {
   }
 }
 
-// True if `name` is the synthetic-net-flow name MarkStockFlows mints for a stock
-// named `stock` -- exactly "<stock> net flow" or "<stock> net flow_<n>" (the _n
-// disambiguation suffix; see Variable::MarkStockFlows). This is the sole producer
-// of that pattern, so a name match reliably identifies the reader's artifact.
-bool IsSyntheticNetFlowName(const std::string &name, const std::string &stock) {
-  const std::string base = stock + " net flow";
-  if (name == base)
-    return true;
-  if (name.size() <= base.size() + 1 || name.compare(0, base.size(), base) != 0 || name[base.size()] != '_')
-    return false;
-  for (size_t i = base.size() + 1; i < name.size(); ++i) {
-    if (!std::isdigit(static_cast<unsigned char>(name[i])))
-      return false;
-  }
-  return true;
-}
-
-// If this stock's net flow is a reader-synthesized "<stock> net flow" variable
-// (the non-clean-+/- case in Variable::MarkStockFlows: a single synthetic inflow,
-// no outflows), return that synthetic flow variable; otherwise nullptr. The
-// synthetic flow's i-th stored equation holds the ORIGINAL net-flow expression of
-// the stock's i-th equation (MarkStockFlows builds them in lockstep), which is
-// what we inline back into INTEG so the emitted .mdl matches the user's input.
+// If this stock's net flow is a reader-synthesized carrier variable (the
+// non-clean-+/- case in Variable::MarkStockFlows: a single synthetic inflow, no
+// outflows), return that carrier; otherwise nullptr. The carrier's i-th stored
+// equation holds the ORIGINAL net-flow expression of the stock's i-th equation
+// (MarkStockFlows builds them in lockstep), which is what we inline back into
+// INTEG so the emitted .mdl matches the user's input.
+//
+// The test is PROVENANCE, not spelling. MarkStockFlows names its carrier
+// "<stock> net flow" (plus a "_<n>" uniquifier), but that is a name a modeler
+// may legally give a flow -- and the "_<n>" form exists precisely because such a
+// variable already existed. Matching the name deleted the modeler's flow: its
+// expression was inlined into INTEG and its entry suppressed, so its units,
+// documentation and group went with it and the emitted sketch referenced a
+// variable the file no longer defined. Variable::SynthesizedNetFlow is set only
+// where the carrier is created, so it separates the two even when both are
+// present.
 Variable *SyntheticNetFlowFor(Variable *stock) {
   if (stock->Outflows().size() != 0 || stock->Inflows().size() != 1)
     return nullptr;
   Variable *flow = stock->Inflows()[0];
-  if (!flow || !IsSyntheticNetFlowName(flow->GetName(), stock->GetName()))
+  if (!flow || !flow->SynthesizedNetFlow())
     return nullptr;
   return flow;
 }
 
-// The reader-synthesized "<stock> net flow" variables in `vars`. EmitStockEntry
-// inlines each one's expression back into its stock's INTEG, so any standalone
-// emission of these would leak a reader artifact and (for per-element stocks)
-// make the re-parse synthesize a duplicate. Both the main equation loop
+// The reader-synthesized net-flow carriers among `vars`. EmitStockEntry inlines
+// each one's expression back into its stock's INTEG, so any standalone emission
+// of these would leak a reader artifact and (for per-element stocks) make the
+// re-parse synthesize a duplicate. Both the main equation loop
 // (GenerateEquations) and the macro-body loop (GenerateMacros) must suppress
-// them, so the collection lives here as a shared helper rather than inline.
+// them, so the collection lives here as a shared helper rather than inline. It
+// walks each namespace's own `vars`, so a carrier synthesized inside a macro
+// body is caught by the macro loop and only there.
 std::unordered_set<Variable *> CollectSyntheticNetFlows(const std::vector<Variable *> &vars) {
   std::unordered_set<Variable *> synth;
   for (Variable *v : vars) {
@@ -187,6 +240,30 @@ std::unordered_set<Variable *> CollectSyntheticNetFlows(const std::vector<Variab
     }
   }
   return synth;
+}
+
+// The longest line the Vensim sketch and settings readers hand back intact.
+// Both pull a line into a fixed BUFLEN (4096) buffer via VensimLex::ReadLine,
+// which keeps at most BUFLEN-1 characters and returns the remainder as the NEXT
+// line. The safe length is BUFLEN-2 rather than BUFLEN-1 because ReadLine tests
+// its buffer bound BEFORE it tests for the line terminator: a line of exactly
+// BUFLEN-1 characters comes back whole but leaves its own terminator unconsumed,
+// so the following call returns a spurious empty line -- the same one-slot shift
+// as a truncation. Verified against VensimLex::ReadLine and end to end through
+// the CLI.
+constexpr size_t kVensimSafeLineLength = 4094;
+
+// Shorten a name for a diagnostic, on a UTF-8 character boundary so the message
+// does not end in half a codepoint. Only the message is shortened; the emitted
+// text is never truncated.
+std::string ElideForLog(const std::string &s) {
+  size_t cut = 60;
+  if (s.size() <= cut)
+    return s;
+  // Back up off a continuation byte (10xxxxxx) to the start of its character.
+  while (cut > 0 && (static_cast<unsigned char>(s[cut]) & 0xC0) == 0x80)
+    cut--;
+  return s.substr(0, cut) + "...";
 }
 
 }  // namespace
@@ -218,11 +295,20 @@ std::string MDLGenerator::Print() {
   // (VensimParse.cpp:650-665) defines a :MACRO: block's name in the main
   // namespace as it reads it, so the macro must be declared before the main
   // equations that call it -- matching simlin writer.rs and the XMILE generator.
+  //
+  // The sketch must come after all three equation passes for a second reason
+  // besides file layout: it is filtered against _namedInEquations, the set of
+  // variables those passes actually spelled out, so it cannot be built until
+  // they have run.
   std::string out;
   out += "{UTF-8}\n";
+  BuildExtrapolateLookups();
   GenerateMacros(out);
   GenerateEquations(out);
   GenerateControl(out);
+  // Every equation is rendered by now, so _referencedExtrapolate is complete;
+  // warn for any extrapolating standalone lookup that had no call site to mark.
+  WarnUnreferencedExtrapolate();
   GenerateSketch(out);
   GenerateSettings(out);
 
@@ -237,19 +323,81 @@ std::string MDLGenerator::Print() {
   return crlf;
 }
 
+void MDLGenerator::BuildExtrapolateLookups() {
+  // A standalone graphical function stores its ExpressionTable directly as the
+  // RHS of a defining equation (the same shape GenerateVariableEntry emits as
+  // "name(<body>)"). When that table is marked extrapolating, a LOOKUP call to
+  // this variable must be emitted as TABXL so the kind survives re-import. Scan
+  // the main model and every macro body, since a macro-body lookup can reference
+  // a macro-body standalone GF.
+  auto scan = [this](const std::vector<Variable *> &vars) {
+    for (Variable *v : vars) {
+      for (Equation *eq : v->GetAllEquations()) {
+        Expression *rhs = eq->GetExpression();
+        if (rhs && rhs->GetType() == EXPTYPE_Table && static_cast<ExpressionTable *>(rhs)->Extrapolate()) {
+          _extrapolateLookups.insert(v);
+          break;
+        }
+      }
+    }
+  };
+  scan(_model->GetVariables(nullptr));
+  for (MacroFunction *mf : _model->MacroFunctions())
+    scan(_model->GetVariables(mf->NameSpace()));
+}
+
+void MDLGenerator::WarnUnreferencedExtrapolate() {
+  // An extrapolating standalone lookup with no call site cannot be marked (there
+  // is no TABXL anchor to carry the flag), so it is emitted clamped to
+  // continuous. Do NOT fabricate a call site; surface a diagnostic on the
+  // log/stderr channel (never the MDL text) so the loss is visible.
+  for (Variable *v : _extrapolateLookups) {
+    if (!_referencedExtrapolate.count(v))
+      log("warning: extrapolating lookup '%s' has no call site; emitting it clamped to continuous (MDL has no "
+          "definition-level extrapolate flag)\n",
+          v->GetName().c_str());
+  }
+}
+
 void MDLGenerator::EmitVariableRecord(std::string &out, int uid, VensimVariableElement *e) {
   // 10,uid,name,x,y,w,h,shape,bits,... (VensimView.cpp:6-49). The reader takes
   // _attached from shape bit5 and _ghost from bits bit0 INVERTED (bit0 set =>
   // not a ghost), and resolves the Variable* by name via FindVariable, so the
   // name must match the equation-section spelling (FormatMDLIdent).
+  //
+  // The caller has already established that this element survives
+  // (SuppressedSketchSlots), which includes it having a resolved Variable.
+  const std::string name = mdl::FormatMDLIdent(e->GetVariable()->GetName());
   int shape = 3;
   if (e->Attached())
     shape |= (1 << 5);
   int bits = e->Ghost(nullptr, false) ? 2 : 3;
-  out += "10," + std::to_string(uid) + "," + mdl::FormatMDLIdent(e->GetVariable()->GetName()) + ",";
-  out += std::to_string(e->X()) + "," + std::to_string(e->Y()) + "," + std::to_string(e->Width()) + "," +
-         std::to_string(e->Height()) + ",";
-  out += std::to_string(shape) + "," + std::to_string(bits) + ",0,0,0,0,0,0\n";
+  std::string line = "10," + std::to_string(uid) + "," + name + ",";
+  line += std::to_string(e->X()) + "," + std::to_string(e->Y()) + "," + std::to_string(e->Width()) + "," +
+          std::to_string(e->Height()) + ",";
+  line += std::to_string(shape) + "," + std::to_string(bits) + ",0,0,0,0,0,0";
+  WarnIfLineTooLong(line, "sketch variable record", e->GetVariable()->GetName());
+  out += line + "\n";
+}
+
+void MDLGenerator::NoteVariableNamed(Symbol *s) {
+  if (s && s->isType() == Symtype_Variable)
+    _namedInEquations.insert(static_cast<Variable *>(s));
+}
+
+void MDLGenerator::WarnIfLineTooLong(const std::string &line, const char *kind, const std::string &what) {
+  if (line.size() <= kVensimSafeLineLength)
+    return;
+  // Truncating here instead would violate the free-text contract this writer
+  // holds everywhere else -- a documented substitution, never a silent drop --
+  // so the over-long text is emitted intact and the hazard is reported. The loss
+  // is otherwise completely silent: the split shifts every following line by one
+  // slot, so an over-long *Title costs the re-read the ENTIRE sketch and the
+  // trailing :L settings block (integration method, unit equivalences) with a
+  // zero exit status and no other diagnostic.
+  log("warning: the %s for '%s' is %zu characters; the Vensim reader splits a line longer than %zu and would misread "
+      "everything after it\n",
+      kind, ElideForLog(what).c_str(), line.size(), kVensimSafeLineLength);
 }
 
 void MDLGenerator::EmitValveRecord(std::string &out, int uid, VensimValveElement *e) {
@@ -288,6 +436,86 @@ void MDLGenerator::EmitConnectorRecord(std::string &out, int uid, VensimConnecto
          ")|\n";
 }
 
+std::vector<bool> MDLGenerator::SuppressedSketchSlots(const std::vector<VensimViewElement *> &elems) const {
+  // A sketch is a drawing OF the equation section, and the only thing a record
+  // carries about its subject is a NAME: re-reading resolves that name through
+  // VensimParse::FindVariable, which sees only what the equation text interned.
+  // So a `.mdl` whose sketch names something its own equations never mention is
+  // internally inconsistent -- it re-reads with VensimVariableElement::_variable
+  // NULL, which is a live NULL dereference for every later consumer and is
+  // exactly how this writer's output came to crash this writer. The three rules
+  // below are what keep that from being expressible.
+  //
+  // The surviving records KEEP their UIDs and the removed slots are simply left
+  // empty. Renumbering densely would mean rewriting every connector's From()/To()
+  // to match AND would still have to special-case the valve pairing below (a
+  // flow's record removed from under its valve would otherwise let whatever slid
+  // into valve_uid + 1 be adopted as the flow -- silently wrong rather than
+  // merely absent). A gap costs nothing by comparison: a sparse view is already
+  // an ordinary shape, since VensimView::ReadView leaves a NULL in every slot no
+  // record claims and a hand-authored sketch may skip UIDs freely.
+  std::vector<bool> suppressed(elems.size(), false);
+
+  // Rule 1: a variable record whose name the equation section never wrote.
+  // _namedInEquations is recorded during rendering, so this follows the equation
+  // section's own decisions rather than re-deriving them -- an untyped variable
+  // with no equation, a variable marked Unwanted, and a net-flow carrier inlined
+  // into its stock's INTEG are all withheld for different reasons and all land
+  // here. A NULL GetVariable() (the source sketch already named something its
+  // own equations did not define) has no name left to re-emit and lands here
+  // too.
+  for (size_t uid = 0; uid < elems.size(); uid++) {
+    VensimViewElement *e = elems[uid];
+    if (!e || e->Type() != VensimViewElement::ElementTypeVARIABLE)
+      continue;
+    Variable *var = e->GetVariable();
+    if (!var || !_namedInEquations.count(var))
+      suppressed[uid] = true;
+  }
+
+  // Rule 2: an attached valve whose flow record is not there. Vensim draws a
+  // flow as an attached valve immediately followed by the flow's own variable
+  // record, and consumers resolve the pair by that adjacency alone --
+  // XMILEGenerator::generateView re-points a connector endpoint to
+  // elements[valve_uid + 1] outright. A valve left standing after rule 1 removed
+  // its flow claims a flow the file no longer has. The rule is written against
+  // the slot rather than against rule 1's decision so it also covers a valve
+  // that arrived unpaired, which a hand-authored sketch can express.
+  for (size_t uid = 0; uid < elems.size(); uid++) {
+    VensimViewElement *e = elems[uid];
+    if (!e || e->Type() != VensimViewElement::ElementTypeVALVE)
+      continue;
+    if (!static_cast<VensimValveElement *>(e)->Attached())
+      continue;  // an unattached valve pairs with nothing, so nothing dangles
+    const size_t flow = uid + 1;
+    if (flow >= elems.size() || !elems[flow] || suppressed[flow] ||
+        elems[flow]->Type() != VensimViewElement::ElementTypeVARIABLE)
+      suppressed[uid] = true;
+  }
+
+  // Rule 3: a connector with an endpoint that is not a surviving record. Both
+  // endpoints are raw UIDs off the wire, so either can already name an empty or
+  // out-of-range slot before anything above removes one. Leaving such a record
+  // in is what made the earlier "drop the element, keep the connector" behaviour
+  // stable rather than self-correcting: the dangling connector was re-read,
+  // re-emitted, and re-dangled on every conversion, forever.
+  auto survives = [&](int endpoint) {
+    if (endpoint < 0 || static_cast<size_t>(endpoint) >= elems.size())
+      return false;
+    return elems[endpoint] != nullptr && !suppressed[endpoint];
+  };
+  for (size_t uid = 0; uid < elems.size(); uid++) {
+    VensimViewElement *e = elems[uid];
+    if (!e || e->Type() != VensimViewElement::ElementTypeCONNECTOR)
+      continue;
+    VensimConnectorElement *ce = static_cast<VensimConnectorElement *>(e);
+    if (!survives(ce->From()) || !survives(ce->To()))
+      suppressed[uid] = true;
+  }
+
+  return suppressed;
+}
+
 void MDLGenerator::GenerateSketch(std::string &out) {
   // The opener marker (VensimParse.cpp:285), a V300 version line (checked at
   // :288), a *Title line (SetTitle(buf+1) at :298), the Vensim default
@@ -310,10 +538,35 @@ void MDLGenerator::GenerateSketch(std::string &out) {
 
   // One frame header per view: the opener marker, version line, *Title, and
   // the default font/cosmetic line.
-  auto emitFrameHeader = [&](const std::string &title) {
+  //
+  // The title is modeler-authored free text that reaches the writer unfiltered
+  // (XmileReader::ProcessViews stores an XMILE <view name="..."> verbatim), and
+  // this header is POSITIONAL: the reader takes the title from everything after
+  // the leading '*' of ONE physical line and then reads the NEXT line as the
+  // font line (VensimParse.cpp:315-318). A line break in the title therefore
+  // pushes the font line into the first record slot and every following record
+  // is misread, so the title must collapse to a single line -- the same free-text
+  // hazard as units/comments and group banner names (#849).
+  //
+  // A break is the only hazard intrinsic to this line: the reader scans no
+  // delimiter within it, so extraForbidden is empty. The '|' -> '/' and
+  // section-terminator substitutions SanitizeFreeText always applies are kept as
+  // defense in depth for consumers that scan the line more aggressively than
+  // xmutil does. Two characters are deliberately NOT substituted: a leading '*'
+  // is harmless because the reader skips exactly one character, so "*" + "*x"
+  // reads back as "*x"; and a leading '$' cannot be confused with the font line,
+  // which is only ever read from the line AFTER this one.
+  auto emitFrameHeader = [&](const std::string &rawTitle) {
+    std::string title = mdl::SanitizeFreeText(rawTitle, mdl::FreeTextLineMode::SingleLine, "");
+    // An empty title would emit a bare "*", which reads back as the empty string
+    // and leaves the frame nameless; name it as the no-view case below does.
+    if (title.empty())
+      title = "View 1";
+    const std::string titleLine = "*" + title;
+    WarnIfLineTooLong(titleLine, "sketch frame title", title);
     out += "\\\\\\---///\n";
     out += std::string(kVersion) + "\n";
-    out += "*" + title + "\n";
+    out += titleLine + "\n";
     out += std::string(kFontLine) + "\n";
   };
 
@@ -327,15 +580,17 @@ void MDLGenerator::GenerateSketch(std::string &out) {
   }
 
   for (VensimView *vv : views) {
-    emitFrameHeader(vv->Title().empty() ? "View 1" : vv->Title());
+    emitFrameHeader(vv->Title());
 
-    // The array index is the on-wire UID. NULL slots (a sparse view) are skipped
-    // but their index is still consumed, so a connector's From()/To() UIDs --
-    // which are these indices -- remain valid after re-parse.
+    // The array index is the on-wire UID. NULL slots (a sparse view) and
+    // suppressed slots are skipped but their index is still consumed, so a
+    // connector's From()/To() UIDs -- which are these indices -- remain valid
+    // after re-parse.
     VensimViewElements &elems = vv->Elements();
+    const std::vector<bool> suppressed = SuppressedSketchSlots(elems);
     for (size_t uid = 0; uid < elems.size(); uid++) {
       VensimViewElement *e = elems[uid];
-      if (!e)
+      if (!e || suppressed[uid])
         continue;
       switch (e->Type()) {
       case VensimViewElement::ElementTypeVARIABLE:
@@ -367,8 +622,18 @@ void MDLGenerator::GenerateSettings(std::string &out) {
   out += '\x7F';
   out += "<%^E!@\n";
 
-  for (const std::string &eq : _model->UnitEquivs())
-    out += "22:" + eq + "\n";
+  // A unit equivalence is modeler text on a single settings line, read back
+  // through the same fixed-size ReadLine as the sketch, so it carries the same
+  // truncation hazard. MdlPayload flattens the declaration to Vensim's flat
+  // comma-separated name list and sanitizes each field; it is the exact inverse
+  // of the 22: parse in VensimParse, so a line read from a .mdl re-emits
+  // unchanged.
+  for (const UnitEquiv &equiv : _model->UnitEquivs()) {
+    const std::string payload = equiv.MdlPayload();
+    const std::string line = "22:" + payload;
+    WarnIfLineTooLong(line, "unit equivalence settings line", payload);
+    out += line + "\n";
+  }
 
   // Vensim 15: integration code: Euler->0, RK4->1, RK2->3 (the inverse of
   // VensimParse.cpp:334-348, which also accepts 2->Euler/5->RK4/4->RK2).
@@ -659,21 +924,20 @@ void MDLGenerator::EmitStockEntry(std::string &out, Variable *v) {
   // be undone. MarkStockFlows leaves the stored arg 0 in one of two shapes:
   //   - a clean +/- of named flows (e.g. `inflow[Dim] - outflow[Dim]`): arg 0 is
   //     the user's own expression and is emitted verbatim, and
-  //   - a reference to a reader-synthesized "<stock> net flow" variable (the
-  //     non-clean case, AND -- because of the subscript bug noted in
-  //     MarkStockFlows -- EVERY per-element stock, even one with clean per-element
-  //     flows): the original net-flow expression was moved onto that synthetic
-  //     variable's own equation, and arg 0 was rewritten to reference it.
-  // For the second shape we inline the synthetic variable's matching stored
-  // equation (its i-th equation is the i-th stock equation's original net flow,
-  // built in lockstep by MarkStockFlows) rather than emitting the synthetic-flow
-  // reference. Inlining reproduces the user's input exactly, so re-parsing
-  // re-synthesizes the SAME single "<stock> net flow". Emitting the reference
-  // instead would, for a per-element stock, make the re-parse hit the subscript
-  // bug again and synthesize a DUPLICATE "<stock> net flow_1" (the arrayed-stock
-  // review finding). The synthetic flow itself is suppressed from the equation
-  // section (GenerateEquations) since its expression now lives inline; it is a
-  // reader artifact, never user-authored, so the emitted .mdl stays clean.
+  //   - a reference to a carrier variable MarkStockFlows synthesized (the
+  //     non-clean case, and a per-element stock whose equations do not all reduce
+  //     to one shared flow list): the original net-flow expression was moved onto
+  //     that carrier's own equation, and arg 0 was rewritten to reference it.
+  // For the second shape we inline the carrier's matching stored equation (its
+  // i-th equation is the i-th stock equation's original net flow, built in
+  // lockstep by MarkStockFlows) rather than emitting the carrier reference.
+  // Inlining reproduces the user's input exactly, so re-parsing re-synthesizes
+  // the SAME single carrier. Emitting the reference instead would, for a
+  // per-element stock, make the re-parse synthesize a DUPLICATE
+  // "<stock> net flow_1" on top of it (the arrayed-stock review finding). The
+  // carrier itself is suppressed from the equation section (GenerateEquations)
+  // since its expression now lives inline -- SyntheticNetFlowFor tests recorded
+  // provenance, so a modeler's own "<stock> net flow" is never mistaken for one.
   Variable *synth = SyntheticNetFlowFor(v);
   std::vector<Equation *> stockEqs = v->GetAllEquations();
   std::vector<Equation *> synthEqs = synth ? synth->GetAllEquations() : std::vector<Equation *>();
@@ -738,6 +1002,10 @@ void MDLGenerator::EmitDimensionEntry(std::string &out, Variable *v) {
     return;
   ExpressionSymbolList *esl = static_cast<ExpressionSymbolList *>(exp);
 
+  // Recorded here rather than in EmitWrappedEntry because a dimension entry is
+  // not an equation and does not go through it; the early returns above are why
+  // it is not recorded before them.
+  NoteVariableNamed(v);
   std::string entry = mdl::FormatMDLIdent(v->GetName()) + ": " + RenderDimensionElements(esl->SymList());
   if (SymbolList *map = esl->Map())
     entry += " -> " + RenderDimensionMap(map);
@@ -764,10 +1032,12 @@ std::string MDLGenerator::RenderDimensionElements(SymbolList *sl) {
     if (i)
       out += ", ";
     const SymbolList::SymbolListEntry &e = (*sl)[i];
-    if (e.eType == SymbolList::EntryType_LIST)
+    if (e.eType == SymbolList::EntryType_LIST) {
       out += RenderDimensionElements(e.u.pSymbolList);
-    else
+    } else {
+      NoteVariableNamed(e.u.pSymbol);
       out += mdl::FormatMDLIdent(e.u.pSymbol->GetName());
+    }
   }
   return out;
 }
@@ -780,8 +1050,10 @@ std::string MDLGenerator::RenderDimensionMap(SymbolList *map) {
   // A list whose MapRange is set is the "(Range: elements)" form; otherwise the
   // top-level entries are rendered comma-separated, recursing into any nested
   // "(Range: ...)" list.
-  if (map->IsMapList())
+  if (map->IsMapList()) {
+    NoteVariableNamed(map->MapRange());
     return "(" + mdl::FormatMDLIdent(map->MapRange()->GetName()) + ": " + RenderDimensionElements(map) + ")";
+  }
 
   std::string out;
   int n = map->Length();
@@ -789,10 +1061,12 @@ std::string MDLGenerator::RenderDimensionMap(SymbolList *map) {
     if (i)
       out += ", ";
     const SymbolList::SymbolListEntry &e = (*map)[i];
-    if (e.eType == SymbolList::EntryType_LIST)
+    if (e.eType == SymbolList::EntryType_LIST) {
       out += RenderDimensionMap(e.u.pSymbolList);
-    else
+    } else {
+      NoteVariableNamed(e.u.pSymbol);
       out += mdl::FormatMDLIdent(e.u.pSymbol->GetName());
+    }
   }
   return out;
 }
@@ -835,6 +1109,9 @@ std::string MDLGenerator::UnitsCommentTrailer(Variable *v) {
 }
 
 void MDLGenerator::EmitWrappedEntry(std::string &out, const std::string &entry, Variable *v) {
+  // Every equation-section definition funnels through here, so this is the one
+  // place the sketch filter needs for the left-hand-side half of its answer.
+  NoteVariableNamed(v);
   out += mdl::WrapEquation(entry, 80);
   out += UnitsCommentTrailer(v);
   out += "\n";
@@ -918,6 +1195,7 @@ std::string MDLGenerator::RenderFunction(ExpressionFunction *fn) {
 }
 
 std::string MDLGenerator::RenderVariableRef(ExpressionVariable *v) {
+  NoteVariableNamed(v->GetVariable());
   std::string out = mdl::FormatMDLIdent(v->GetVariable()->GetName());
   SymbolList *subs = v->GetSubs();
   if (subs && subs->Length() > 0)
@@ -940,6 +1218,7 @@ std::string MDLGenerator::RenderSubscripts(SymbolList *subs) {
       // crashing. Vensim has no bare-`*` subscript form.
       out += "*";
     } else {
+      NoteVariableNamed(e.u.pSymbol);
       out += mdl::FormatMDLIdent(e.u.pSymbol->GetName());
       if (e.eType == SymbolList::EntryType_BANG_SYMBOL)
         out += "!";  // Vensim "bang" subscript marks a vector-iteration dimension
@@ -957,13 +1236,29 @@ std::string MDLGenerator::RenderTableLike(Expression *e) {
       // Embedded "WITH LOOKUP(input, (<body>))": an inline table applied to an
       // input expression. This is how the reader represents both a top-level
       // "y = WITH LOOKUP(...)" and a nested one.
+      if (lk->GetTable()->Extrapolate()) {
+        // An inline WITH LOOKUP has no nameable table, so there is no TABXL call
+        // site that could carry the extrapolate kind; it is emitted continuous.
+        log("warning: inline WITH LOOKUP is extrapolating but MDL cannot mark an "
+            "inline table; emitting it clamped to continuous\n");
+      }
       return "WITH LOOKUP(" + RenderExpression(lk->GetInput()) + ", (" + mdl::WriteLookupBody(lk->GetTable()) + "))";
     }
     // A lookup call "table(input)": a reference to a named lookup variable
     // applied to an input. GetLookupVariable() carries no subscripts in this
-    // form, so the bare identifier is sufficient.
-    return mdl::FormatMDLIdent(lk->GetLookupVariable()->GetVariable()->GetName()) + "(" +
-           RenderExpression(lk->GetInput()) + ")";
+    // form, so the bare identifier is sufficient. When the referenced table is a
+    // standalone extrapolating lookup, emit TABXL(table, input) instead so the
+    // kind re-imports as extrapolate rather than clamping to continuous -- MDL
+    // has no definition-level extrapolate flag, only this call-site marker.
+    Variable *target = lk->GetLookupVariable()->GetVariable();
+    NoteVariableNamed(target);
+    std::string ident = mdl::FormatMDLIdent(target->GetName());
+    std::string input = RenderExpression(lk->GetInput());
+    if (_extrapolateLookups.count(target)) {
+      _referencedExtrapolate.insert(target);
+      return "TABXL(" + ident + ", " + input + ")";
+    }
+    return ident + "(" + input + ")";
   }
   case EXPTYPE_Table:
     // A bare table inside an expression (rare; the standalone graphical-function
@@ -995,42 +1290,70 @@ std::string MDLGenerator::RenderTableLike(Expression *e) {
 std::string MDLGenerator::ParenIfNecessary(Expression *parent, Expression *child, bool isRightChild,
                                            const std::string &childStr) {
   bool needs = false;
+  // Judged from the rendered text, so a negative literal counts as the unary
+  // minus it re-parses as; see MdlRenderedUnaryPrecedence.
+  const int childUnary = MdlRenderedUnaryPrecedence(child, childStr);
+  const bool childIsUnary = childUnary < kNotOperator;
   if (IsBinaryOp(parent) && IsBinaryOp(child)) {
     int pp = MdlPrecedence(parent);
     int cp = MdlPrecedence(child);
     if (pp > cp) {
       needs = true;
     } else if (pp == cp) {
-      // Equal precedence: parenthesize the operand that the parent's
-      // associativity would otherwise re-group the wrong way.
-      Expression *p = Unwrap(parent);
-      const char *po = p ? p->GetOperator() : nullptr;
-      if (po && po[0] == '^') {
-        // ^ is right-associative (a ^ b ^ c == a ^ (b ^ c)), so an explicit
-        // left grouping (a ^ b) ^ c must keep its parentheses.
-        needs = !isRightChild;
-      } else if (po && (po[0] == '-' || po[0] == '/')) {
-        // - and / are left-associative and non-associative in value, so the
-        // right operand needs parens: a - (b - c) != (a - b) - c. xmutil has no
-        // MOD operator (MODULO is a function), so only - and / apply here.
-        needs = isRightChild;
-      }
+      // Equal precedence: the level's grammar-declared associativity re-groups
+      // one of the two operands, so THAT operand must keep its parentheses or
+      // the emitted text re-parses into a different tree. Under %left,
+      // `a OP b OP c` means `(a OP b) OP c`, so a right operand that is itself
+      // an equal-precedence operator needs parens; under %right (only ^) it is
+      // the left operand that needs them.
+      //
+      // The rule is decided by the PARENT's level alone, which is why it is
+      // read from MdlBinaryInfo rather than from GetOperator(): an
+      // ExpressionLogical (a comparison, :AND:, :OR:) has no arithmetic
+      // operator spelling, so keying off GetOperator() silently exempted every
+      // logical parent and emitted `a < (b < c)` as `a < b < c` -- which
+      // re-parses as `(a < b) < c`, a different expression with a different
+      // value.
+      //
+      // It applies even to operators that are associative in value (+, *,
+      // :AND:, :OR:). The writer's contract is that its output re-parses into a
+      // STRUCTURALLY equivalent model (test/mdl/ModelComparator.cpp compares
+      // ASTs, unwrapping only paren nodes), so re-grouping the user's tree is a
+      // difference even when it preserves the mathematical value -- and for +
+      // and * over floating point it does not reliably preserve even that.
+      needs = MdlBinaryInfo(parent).rightAssoc ? !isRightChild : isRightChild;
     }
-  } else if (IsBinaryOp(parent) && IsUnaryOp(child)) {
-    // A unary child binds looser than every operator above its grammar level.
-    // As a LEFT operand of a tighter binary parent it would re-bind the wrong
-    // way (`-a ^ b` -> -(a ^ b), `:NOT: a ^ b` -> :NOT: (a ^ b)), so it needs
-    // parens. As a RIGHT operand it extends rightward to the end of the
-    // sub-expression and re-parses correctly without them (`a * -b`), so we
-    // leave those bare. At equal precedence (unary minus under binary +/-) the
-    // left operand also re-parses correctly, hence the strict comparison.
-    needs = !isRightChild && MdlUnaryPrecedence(child) < MdlPrecedence(parent);
+  } else if (IsBinaryOp(parent) && childIsUnary) {
+    // A unary production reaches rightward over everything that binds tighter
+    // than its own level, so what decides the grouping is the FIRST TOKEN THAT
+    // FOLLOWS the unary's operand in the emitted text. Bare is safe only when
+    // nothing tighter than the unary's level can follow.
+    //
+    // As a LEFT operand that token is the parent's own operator, so the test is
+    // direct: `-a ^ b` re-parses as -(a ^ b) and needs parens, while `-a + b`
+    // (equal level, %left, so the parser reduces the unary) does not.
+    //
+    // As a RIGHT operand the unary is last in the parent's own text, so the
+    // token that follows it is whatever follows the PARENT -- which comes from
+    // the grandparent chain, not from the parent. The parent still bounds it:
+    // the binary rule above only leaves a node unparenthesized under an operator
+    // of precedence <= its own, and inductively the token following any
+    // unparenthesized node binds no tighter than that node's own level. So the
+    // parent's precedence is the worst case on both sides, and one test covers
+    // them. The earlier right-operand exemption was only ever valid when the
+    // parent ended the whole expression: `(a * -1) < b` emitted `a * -1 < b`,
+    // which re-parses as a * (-(1 < b)).
+    needs = childUnary < MdlPrecedence(parent);
   } else if (IsUnaryOp(parent) && IsBinaryOp(child)) {
     needs = true;
-  } else if (IsUnaryOp(parent) && IsUnaryOp(child)) {
+  } else if (IsUnaryOp(parent) && childIsUnary) {
     // Nested unary minus: emit `-(-a)` rather than the fragile `--a` that some
-    // Vensim consumers reject (it still re-parses, but is poor output). :NOT:
-    // never directly nests another unary without an intervening operator.
+    // Vensim consumers reject (it still re-parses, but is poor output). With a
+    // negative literal the parens are load-bearing rather than cosmetic: `--2`
+    // re-parses as the single number 2, because the fold that produced the
+    // literal fires a second time and swallows the outer negation. :NOT: nests
+    // the same way (`VPTT_not exp` where exp is itself unary), so `:NOT: :NOT: a`
+    // and `:NOT: -a` take this branch too.
     needs = true;
   }
   return needs ? "(" + childStr + ")" : childStr;
