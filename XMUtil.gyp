@@ -104,11 +104,66 @@
             '<@(common_sources)',
         ],
         'defines' : [
-            
+
         ],
         'include_dirs': [
             'src',
-        ]
+        ],
+    }, {
+        # The custom test harness links the same engine sources as XMUtil but
+        # swaps Main.cpp for the test entry point.
+        'target_name': 'xmutil_test',
+        'type': 'executable',
+        'product_name': 'xmutil_test',
+        'mac_bundle': 0,
+        'sources': [
+            '<@(common_sources)',
+            './test/TestHarness.cpp',
+            './test/UnicodeTest.cpp',
+            './test/mdl/ModelComparator.cpp',
+            './test/mdl/RoundTrip.cpp',
+            './test/mdl/MDLGeneratorTest.cpp',
+            './test/mdl/MDLFormatTest.cpp',
+            './test/mdl/WalkerTest.cpp',
+            './test/mdl/ModelComparatorTest.cpp',
+            './test/mdl/EquationRoundTripTest.cpp',
+            './test/mdl/ControlRoundTripTest.cpp',
+            './test/mdl/SketchRoundTripTest.cpp',
+            './test/mdl/MacroRoundTripTest.cpp',
+            './test/mdl/WriterBugRegressionTest.cpp',
+            './test/mdl/GroupNestingTest.cpp',
+            './test/mdl/CorpusRoundTripTest.cpp',
+            './test/mdl/CEntryTest.cpp',
+            './test/mdl/DynamoToMdlTest.cpp',
+            './test/xmile/RoundTrip.cpp',
+            './test/xmile/BasicSmokeTest.cpp',
+            './test/xmile/XmileFunctionsTest.cpp',
+            './test/xmile/EquationParseTest.cpp',
+            './test/xmile/AuxRoundTripTest.cpp',
+            './test/xmile/StockFlowRoundTripTest.cpp',
+            './test/xmile/ArrayRoundTripTest.cpp',
+            './test/xmile/LookupRoundTripTest.cpp',
+            './test/xmile/ViewRoundTripTest.cpp',
+            './test/xmile/CorpusRoundTripTest.cpp',
+            './test/xmile/XmileCorpusTest.cpp',
+            './test/xmile/ErrorRejectTest.cpp',
+            './test/xmile/BuiltinNameCollisionTest.cpp',
+            './test/xmile/PiKeywordTest.cpp',
+            './test/xmile/ReaderLifetimeTest.cpp',
+            './test/xmile/DiagnosticsTest.cpp',
+            './test/xmile/CEntryTest.cpp',
+            './test/xmile/MdlXmileByteIdentityTest.cpp',
+        ],
+        'defines' : [
+            # <(cwd) is the repo root: configure.sh passes -Dcwd=`pwd` and the
+            # same variable resolves third_party paths elsewhere in this build.
+            # The corpus test joins it with a relative fixture path so it can
+            # locate on-disk fixtures regardless of the test binary's CWD.
+            'XMUTIL_SRC_ROOT="<(cwd)"',
+        ],
+        'include_dirs': [
+            'src',
+        ],
     }, {
         'target_name': 'XMUtil_wasm',
         'type': 'none',
@@ -150,6 +205,24 @@
 
             './src/Xmile/XMILEGenerator.h',
             './src/Xmile/XMILEGenerator.cpp',
+            './src/Xmile/XmileReader.h',
+            './src/Xmile/XmileReader.cpp',
+            './src/Xmile/XmileView.h',
+            './src/Xmile/XmileView.cpp',
+            './src/Xmile/XmileFunctions.h',
+            './src/Xmile/XmileFunctions.cpp',
+            './src/Xmile/XmileEqLex.h',
+            './src/Xmile/XmileEqLex.cpp',
+            './src/Xmile/XmileEqYacc.tab.cpp',
+            './src/Xmile/XmileEqYacc.tab.hpp',
+            './src/Xmile/XmileEqYacc.y',
+            './src/Xmile/XmileParseFunctions.h',
+            './src/Xmile/XmileParseFunctions.cpp',
+
+            './src/Mdl/MDLFormat.h',
+            './src/Mdl/MDLFormat.cpp',
+            './src/Mdl/MDLGenerator.h',
+            './src/Mdl/MDLGenerator.cpp',
 
             './src/Vensim/VensimLex.h',
             './src/Vensim/VensimLex.cpp',
