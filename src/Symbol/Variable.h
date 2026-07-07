@@ -309,6 +309,21 @@ public:
   bool AsFlow() const {
     return bAsFlow;
   }
+
+  // Provenance for the flow MarkStockFlows mints to carry a stock's net flow
+  // when it will not decompose into a clean +/- of named flows. The .mdl writer
+  // has to undo that synthesis -- it inlines the carrier's expression back into
+  // the stock's INTEG and drops the standalone entry -- and cannot tell the
+  // artifact from a modeler's own variable by name, because a modeler may
+  // legally name a flow "<stock> net flow". Set only where the carrier is
+  // created; never serialized, so re-reading an emitted .mdl re-synthesizes and
+  // re-marks from scratch.
+  void MarkSynthesizedNetFlow() {
+    _synthesizedNetFlow = true;
+  }
+  bool SynthesizedNetFlow() const {
+    return _synthesizedNetFlow;
+  }
   void MarkUsesMemory() {
     bUsesMemory = true;
   }
@@ -364,6 +379,7 @@ private:
   bool _unwanted;
   bool _hasUpstream;
   bool _hasDownstream;
+  bool _synthesizedNetFlow;
   bool bAsFlow;
   bool bUsesMemory;
 };

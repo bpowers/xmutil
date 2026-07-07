@@ -18,7 +18,9 @@ class Model;
 class FlowList;
 class ExpressionTable;
 
-// probably don't need these after all
+// Runtime tag returned by Expression::GetType(), used to dispatch over the
+// concrete expression node kinds (the mdl writer's walker relies on it,
+// EXPTYPE_Logical in particular).
 enum EXPTYPE {
   EXPTYPE_None,
   EXPTYPE_Variable,
@@ -30,7 +32,8 @@ enum EXPTYPE {
   EXPTYPE_FunctionMemory,
   EXPTYPE_Lookup,
   EXPTYPE_Table,
-  EXPTYPE_Operator
+  EXPTYPE_Operator,
+  EXPTYPE_Logical
 };
 
 class Expression : public SymbolTableBase {
@@ -60,7 +63,7 @@ public:
     return true;
   }
   virtual void RemoveFunctionArgs(void) {
-  }                                                      // only 1 subclass does anything
+  }  // only 1 subclass does anything
   virtual void OutputComputable(ContextInfo *info) = 0;  // again don't skip - todo modify this to make dumping
                                                          // equations easy - possibly returning std::string
   virtual bool IsActiveInit() {
@@ -73,6 +76,15 @@ public:
   virtual void GetVarsUsed(std::vector<Variable *> &vars) = 0;  // list of variables used
   virtual void MarkType(XMILE_Type type) = 0;                   // only called with flow after test returns true
   virtual Expression *GetArg(int pos) {
+    return NULL;
+  }
+  // Deep-copy this node into sns, duplicating owned children (subscript lists,
+  // child expressions, argument lists) and sharing referenced Symbols (the
+  // model Variable, the Function). Returns NULL for node kinds the XMILE reader
+  // never produces as a scalar sub-expression (tables, symbol lists); the sole
+  // caller -- optional-argument padding, which duplicates a delay's input for
+  // the synthesized initial value -- never clones those and checks for NULL.
+  virtual Expression *Clone(SymbolNameSpace *sns) {
     return NULL;
   }
 };
@@ -122,6 +134,12 @@ public:
   virtual void MarkType(XMILE_Type type) {
     pVariable->SetVariableType(type);
   }  // only called with flow after test returns true
+  virtual Expression *Clone(SymbolNameSpace *sns) override {
+    // The model Variable is shared (not owned); the subscript list is owned, so
+    // it is deep-copied via SymbolList::Clone (which self-registers in sns).
+    return new ExpressionVariable(sns, pVariable, pSubList ? pSubList->Clone() : nullptr);
+  }
+
 private:
   Variable *pVariable;   // pointer back to the model variable - not allocated by this object
   SymbolList *pSubList;  // subscripts - allocated by this object
@@ -185,6 +203,9 @@ public:
   virtual EXPTYPE GetType(void) {
     return EXPTYPE_Number;
   }
+  double GetValue() const {
+    return value;
+  }
   void FlipSign(void) {
     value = -value;
   }
@@ -193,15 +214,16 @@ public:
   }
   virtual void CheckPlaceholderVars(Model *m, bool isfirst) {
   }
-  virtual void OutputComputable(ContextInfo *info) {
-    *info << value;
-  }
+  virtual void OutputComputable(ContextInfo *info);
   virtual bool TestMarkFlows(SymbolNameSpace *sns, FlowList *fl, Equation *eq) {
     return false;
   }
   virtual void GetVarsUsed(std::vector<Variable *> &vars) {
   }  // list of variables used
   virtual void MarkType(XMILE_Type type) {
+  }
+  virtual Expression *Clone(SymbolNameSpace *sns) override {
+    return new ExpressionNumber(sns, value);
   }
 
 private:
@@ -217,6 +239,9 @@ public:
   }
   virtual EXPTYPE GetType(void) {
     return EXPTYPE_Literal;
+  }
+  const std::string &GetValue() const {
+    return value;
   }
   virtual double Eval(ContextInfo *info) {
     return -1;
@@ -313,6 +338,7 @@ public:
   virtual void GetVarsUsed(std::vector<Variable *> &vars) override;  // list of variables used
   virtual void MarkType(XMILE_Type type) override {
   }
+  virtual Expression *Clone(SymbolNameSpace *sns) override;
 
 private:
   Function *pFunction;  // not allocated here
@@ -347,6 +373,7 @@ public:
   virtual bool TestMarkFlows(SymbolNameSpace *sns, FlowList *fl, Equation *eq);
   virtual void MarkType(XMILE_Type type) {
   }
+  virtual Expression *Clone(SymbolNameSpace *sns) override;
 
 private:
   Equation *pPlacholderEquation;  // used in computation (null if function defines LHS)
@@ -376,6 +403,12 @@ public:
   virtual ExpressionTable *GetTable(void) {
     return pExpressionTable;
   }
+  Expression *GetInput() {
+    return pExpression;
+  }  // the input/argument expr
+  ExpressionVariable *GetLookupVariable() {
+    return pExpressionVariable;
+  }  // NULL for WITH LOOKUP
   void CheckPlaceholderVars(Model *m, bool isfirst) {
     pExpression->CheckPlaceholderVars(m, false);
   }
@@ -397,6 +430,7 @@ public:
   }  // list of variables used
   virtual void MarkType(XMILE_Type type) {
   }
+  virtual Expression *Clone(SymbolNameSpace *sns) override;
 
 private:
   ExpressionVariable *pExpressionVariable;  // null for with_lookup
@@ -564,6 +598,9 @@ protected:
         pE2->OutputComputable(info);                                                                \
       *info << after;                                                                               \
     }                                                                                               \
+    virtual Expression *Clone(SymbolNameSpace *sns) override {                                      \
+      return new name(sns, pE1 ? pE1->Clone(sns) : nullptr, pE2 ? pE2->Clone(sns) : nullptr);       \
+    }                                                                                               \
   };
 #define EO2SubClass(name, evaleq, compsym) EO2SubClassRaw(name, evaleq, "", compsym, "");
 
@@ -588,6 +625,18 @@ public:
       delete pE2;
     }
   }
+  virtual EXPTYPE GetType(void) {
+    return EXPTYPE_Logical;
+  }
+  Expression *GetLeft() {
+    return pE1;
+  }  // NULL for unary :NOT:
+  Expression *GetRight() {
+    return pE2;
+  }  // operand for :NOT: lives here
+  int LogicalOperator() {
+    return mOper;
+  }  // ASCII char or VPTT_* token
   virtual double Eval(ContextInfo *info) {
     return 0;
   }
@@ -624,6 +673,9 @@ public:
       pE1->MarkType(type);
     if (pE2)
       pE2->MarkType(type);
+  }
+  virtual Expression *Clone(SymbolNameSpace *sns) override {
+    return new ExpressionLogical(sns, pE1 ? pE1->Clone(sns) : nullptr, pE2 ? pE2->Clone(sns) : nullptr, mOper);
   }
 
 private:

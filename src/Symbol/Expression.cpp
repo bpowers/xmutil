@@ -25,6 +25,40 @@ double Expression::Eval(ContextInfo *info) {
 void Expression::OutputComputable(ContextInfo *info) {
 }
 
+Expression *ExpressionFunction::Clone(SymbolNameSpace *sns) {
+  // pFunction is shared (registered in the namespace, not owned here); the
+  // argument list is owned, so it is deep-copied.
+  return new ExpressionFunction(sns, pFunction, pArgs ? pArgs->Clone(sns) : nullptr);
+}
+
+Expression *ExpressionFunctionMemory::Clone(SymbolNameSpace *sns) {
+  // pPlacholderEquation is wired up later in the post-parse pipeline; at clone
+  // time (during parsing) it is always null, so the copy needs only the shared
+  // function and a cloned argument list. GetFunction()/GetArgs() reach the
+  // base-class members, which are private to ExpressionFunction.
+  return new ExpressionFunctionMemory(sns, GetFunction(), GetArgs() ? GetArgs()->Clone(sns) : nullptr);
+}
+
+Expression *ExpressionLookup::Clone(SymbolNameSpace *sns) {
+  if (pExpressionVariable) {
+    ExpressionVariable *var = static_cast<ExpressionVariable *>(pExpressionVariable->Clone(sns));
+    return new ExpressionLookup(sns, var, pExpression ? pExpression->Clone(sns) : nullptr);
+  }
+  // WITH LOOKUP form (embedded table): the XMILE reader never emits this as a
+  // scalar sub-expression, so a faithful clone is unnecessary -- signal
+  // "not cloneable" per the Expression::Clone contract.
+  return nullptr;
+}
+
+void ExpressionNumber::OutputComputable(ContextInfo *info) {
+  // Emit the shortest decimal that reparses to the exact same double, via the
+  // same ShortestDouble that backs mdl::FormatMDLNumber and the XMILE writer's
+  // lookup-sample formatting. The ostream default (6 significant digits) would
+  // drop precision on constants like pi(), so an XMILE->XMILE round trip would
+  // drift past the comparator's tolerance.
+  *info << ShortestDouble(value);
+}
+
 ExpressionFunction::~ExpressionFunction() {
   if (HasGoodAlloc())
     delete pArgs;
@@ -253,9 +287,14 @@ void ExpressionTable::TransformLegacy() {
 
 void ExpressionLookup::OutputComputable(ContextInfo *info) {
   if (pExpressionVariable) {
-    *info << "LOOKUP(";
+    // Applying a named graphical function to an input is written as direct
+    // application -- "table(input)" -- in both XMILE and Vensim. (The XMILE
+    // reader also accepts the explicit "LOOKUP(table, input)" spelling some
+    // producers emit; both parse back to this node.) The only consumer of
+    // this path is the XMILE writer; the MDL writer renders lookups through
+    // MDLGenerator::RenderTableLike.
     pExpressionVariable->OutputComputable(info);
-    *info << ", ";
+    *info << "(";
     pExpression->OutputComputable(info);
     *info << ")";
   } else {

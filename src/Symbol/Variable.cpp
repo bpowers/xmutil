@@ -20,6 +20,7 @@ Variable::Variable(SymbolNameSpace *sns, const std::string &name) : Symbol(sns, 
   iNelm = 0;
   _unwanted = false;
   _hasUpstream = _hasDownstream = false;
+  _synthesizedNetFlow = false;
   bAsFlow = false;
   bUsesMemory = false;
 }
@@ -255,7 +256,30 @@ void Variable::MarkStockFlows(SymbolNameSpace *sns, bool as_sectors) {
       match = false;
     else if (i > 0 && !(flow_lists[i] == flow_lists[i - 1]))
       match = false;  // all must be the same
+    // is_all_plus_minus sets HasDownstream / HasUpstream as a guard that
+    // prevents the same flow from being claimed by two different stocks. For
+    // a per-element subscripted stock with one shared inflow/outflow across
+    // every element equation, those flags must not stick between this stock's
+    // own equations -- otherwise equation 2 would see equation 1's flag and
+    // reject the (correct) repeat. Clear here so the next equation in this
+    // same stock starts clean; the flags get re-set below once we know which
+    // flows are actually claimed, preserving the cross-stock guard for later
+    // MarkStockFlows calls on other stocks.
+    for (Variable *fv : flow_lists[i].Inflows())
+      fv->SetHasDownstream(false);
+    for (Variable *fv : flow_lists[i].Outflows())
+      fv->SetHasUpstream(false);
     i++;
+  }
+  // Re-assert the cross-stock guard for whichever flows ended up on this
+  // stock's FlowList(s). We cleared them above to support per-element shared
+  // flows; without restoring, a SUBSEQUENT MarkStockFlows on a different stock
+  // could spuriously claim the same flow.
+  for (FlowList &fl : flow_lists) {
+    for (Variable *fv : fl.Inflows())
+      fv->SetHasDownstream(true);
+    for (Variable *fv : fl.Outflows())
+      fv->SetHasUpstream(true);
   }
   if (match) {
     // got inflows/outflows but we need to check if any of them are defined
@@ -279,6 +303,10 @@ void Variable::MarkStockFlows(SymbolNameSpace *sns, bool as_sectors) {
 
   // mismatched for invalid flow equations - create a flow variable and add it to the model
   Variable *v = this->AddRelated(sns, " net flow", XMILE_Type_FLOW);
+  // The name alone cannot identify this variable as ours later: the Symbol
+  // constructor only appends a "_<n>" suffix when a variable of the un-suffixed
+  // name already exists, i.e. that spelling is one a modeler can and does use.
+  v->MarkSynthesizedNetFlow();
   mInflows.push_back(v);
 
   // now we swap the active part of the INTEG equation for v and set v's equation to
