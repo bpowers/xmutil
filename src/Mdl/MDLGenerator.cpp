@@ -554,8 +554,15 @@ void MDLGenerator::EmitGroupBanner(std::string &out, const std::string &name, co
   // Port of simlin writer.rs:2934-2941. The 56 '*' bars are immediately followed
   // by '~' on the closing line, matching what the Vensim lexer scans for a group
   // banner (VensimLex.cpp:161-186).
+  //
+  // The group name is modeler-authored free text on a single banner line, so a
+  // raw '|' or line break in it would corrupt the banner; sanitize it (#849).
+  // The doc is only ever "" or a fixed safe literal at the two call sites
+  // (GenerateEquations passes "", GenerateControl the control-group caption), so
+  // it carries no modeler text and needs no sanitizing.
   const std::string bar(56, '*');
-  out += "\n" + bar + "\n\t" + name + "\n" + bar + "~\n\t\t" + doc + "\n\t|\n";
+  std::string safeName = mdl::SanitizeFreeText(name, mdl::FreeTextLineMode::SingleLine, "");
+  out += "\n" + bar + "\n\t" + safeName + "\n" + bar + "~\n\t\t" + doc + "\n\t|\n";
 }
 
 void MDLGenerator::GenerateControl(std::string &out) {
@@ -800,19 +807,17 @@ std::string MDLGenerator::UnitsCommentTrailer(Variable *v) {
   else
     units = v->GetUnitsString();
 
-  // Print converts every '\n' in the assembled body to CRLF in a single final
-  // pass, and does so without first removing any '\r' already present. A units
-  // or comment string lexed from a real (CRLF) .mdl carries its internal line
-  // breaks as "\r\n", so an unstripped interior '\r' would become '\r' + "\r\n"
-  // == "\r\r\n" -- a stray bare CR that also accretes one '\r' per re-emit,
-  // breaking idempotence. Strip every interior '\r' here, leaving '\n' as the
-  // sole line-break marker for Print to canonicalize back into CRLF. Both the
-  // units fallback (GetUnitsString) and the comment can span lines, so both are
-  // normalized. (The UnitExpression path emits single-line units, but stripping
-  // it is harmless and keeps the contract uniform.)
-  std::string comment = v->Comment();
-  comment.erase(std::remove(comment.begin(), comment.end(), '\r'), comment.end());
-  units.erase(std::remove(units.begin(), units.end(), '\r'), units.end());
+  // Sanitize both free-text fields so a raw structural character cannot
+  // terminate the entry early (which drops the following variable on re-import,
+  // #849). Units is a single-line field and forbids a bare '~' (its own field
+  // separator); the comment is multi-line and forbids nothing beyond the shared
+  // '|' -> '/' and section-terminator substitutions. SanitizeFreeText also
+  // normalizes '\r\n'/'\r' losslessly to '\n', which subsumes the manual '\r'
+  // erase the previous code did here -- so a CRLF-sourced field is a fixpoint
+  // rather than accreting a carriage return each write, and Print's single final
+  // LF->CRLF pass restores CRLF.
+  std::string comment = mdl::SanitizeFreeText(v->Comment(), mdl::FreeTextLineMode::Multiline, "");
+  units = mdl::SanitizeFreeText(units, mdl::FreeTextLineMode::SingleLine, "~");
 
   // The Vensim lexer (VensimLex::GetComment) captures the separator whitespace
   // between the second '~' and the comment text as part of the stored comment,

@@ -5,11 +5,13 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <set>
 #include <stdexcept>
 
+#include "../Mdl/MDLFormat.h"
 #include "../Model.h"
 #include "../Symbol/Expression.h"
 #include "../Symbol/ExpressionList.h"
@@ -36,6 +38,48 @@ int xpyyparse(void);
 XmileReader *XPObject = nullptr;
 
 namespace {
+
+// The canonical Vensim spellings of the four control variables, indexed by
+// XmileReader::ControlIndex. These are the names <sim_specs> registers, the
+// names MDLGenerator::GenerateControl looks up, and the names the .Control
+// group is written from.
+const char *const kControlNames[] = {"INITIAL TIME", "FINAL TIME", "TIME STEP", "SAVEPER"};
+
+// The numeric constant a Variable's defining equation holds, or false when it
+// has no equation or the equation is anything else. Mirrors what
+// Model::GetConstanValue sees through: a control variable's value only reaches
+// the engine's own fields, and the XMILE writer's <start>/<stop>/<dt>, if it is
+// a bare number.
+bool ConstantValueOf(Variable *v, double *out) {
+  if (!v || v->GetAllEquations().empty())
+    return false;
+  Equation *eq = v->GetEquation(0);
+  Expression *e = eq ? eq->GetExpression() : nullptr;
+  if (!e || e->GetType() != EXPTYPE_Number)
+    return false;
+  *out = e->Eval(NULL);
+  return true;
+}
+
+// Read text as one complete numeric literal, writing it to *out. strtod skips
+// leading whitespace and trailing whitespace is tolerated, but anything else
+// left over -- an operator, a second token, an identifier -- means the body is
+// an expression rather than a constant. "nan"/"inf" parse but are rejected:
+// they are not usable as a control value.
+bool ParseNumericLiteral(const char *text, double *out) {
+  if (!text)
+    return false;
+  char *endp = nullptr;
+  const double v = std::strtod(text, &endp);
+  if (endp == text)
+    return false;
+  while (*endp && std::isspace(static_cast<unsigned char>(*endp)))
+    ++endp;
+  if (*endp || !std::isfinite(v))
+    return false;
+  *out = v;
+  return true;
+}
 
 // Build the "<tag name="X">: " prefix that attributes an equation-level
 // diagnostic to the variable element it came from.
@@ -114,6 +158,7 @@ void CollectPhantomLookups(Expression *e, std::set<std::string> &phantoms) {
 XmileReader::XmileReader(Model *model)
     : _model(model),
       pSymbolNameSpace(model->GetNameSpace()),
+      _haveTimeUnits(false),
       _lastParsedExpr(nullptr),
       _currentLex(nullptr),
       _currentErrs(nullptr),
@@ -135,6 +180,17 @@ XmileReader::XmileReader(Model *model)
   // (e.g. an in-process pipeline that ran VensimParse first).
   if (!pSymbolNameSpace->Find("INTEG"))
     RegisterXmutilFunctions(pSymbolNameSpace);
+
+  // Seed the control values from the Model's own fields so ApplyControlValues
+  // has something coherent to fall back on even for a document that carries no
+  // <sim_specs> at all. ProcessSimSpecs overwrites all four the moment it runs.
+  const double seeds[kControlCount] = {model->initial_time(), model->final_time(), model->dt(), model->dt()};
+  for (int i = 0; i < kControlCount; i++) {
+    _controls[i].var = nullptr;
+    _controls[i].value = seeds[i];
+    _controls[i].stated = false;
+    _controls[i].pendingUnitsAndDoc = nullptr;
+  }
 }
 
 XmileReader::~XmileReader() {
@@ -170,13 +226,14 @@ bool XmileReader::ProcessFile(const std::string &filename, const char *contents,
     errs.push_back(filename + ": root element is not <xmile> (got <" + (rootName ? rootName : "(null)") + ">)");
     return false;
   }
-  // Envelope-level pre-pass: reject <macro> outright and refuse
-  // documents that carry more than one <model> sibling. Counting <model>
-  // siblings here -- rather than inside the dispatch loop below -- means a
-  // multi-model document fails before any partial state is built on the
-  // reader's Model, which keeps the error path symmetric with the empty-input
-  // and malformed-XML returns above.
+  // Envelope-level pre-pass: reject <macro> outright, refuse documents that
+  // carry more than one <model> sibling, and collect the <sim_specs> elements.
+  // Counting <model> siblings here -- rather than inside the dispatch loop
+  // below -- means a multi-model document fails before any partial state is
+  // built on the reader's Model, which keeps the error path symmetric with the
+  // empty-input and malformed-XML returns above.
   int modelCount = 0;
+  std::vector<tinyxml2::XMLElement *> simSpecsEls;
   for (tinyxml2::XMLElement *child = root->FirstChildElement(); child; child = child->NextSiblingElement()) {
     const char *name = child->Name();
     if (!name)
@@ -190,12 +247,27 @@ bool XmileReader::ProcessFile(const std::string &filename, const char *contents,
     }
     if (tag == "model")
       ++modelCount;
+    else if (tag == "sim_specs")
+      simSpecsEls.push_back(child);
   }
   if (modelCount > 1) {
     errs.push_back(filename + ": multiple <model> elements are not supported");
     return false;
   }
+  // <sim_specs> is dispatched ahead of the main loop rather than in document
+  // order. XMILE fixes no order among the envelope's children, and <variables>
+  // may declare any of the four control names as an ordinary <aux> -- so unless
+  // the sim specs are known first, whether the declaration or <sim_specs> wins
+  // depends on which element the document happens to put first. Hoisting makes
+  // the control values settled before any declaration is walked, which is what
+  // lets ProcessControlDeclaration state one rule for both orders.
   bool ok = true;
+  for (tinyxml2::XMLElement *simSpecs : simSpecsEls) {
+    if (!ProcessSimSpecs(simSpecs, errs)) {
+      ok = false;
+      break;
+    }
+  }
   for (tinyxml2::XMLElement *child = root->FirstChildElement(); ok && child; child = child->NextSiblingElement()) {
     const char *name = child->Name();
     if (!name)
@@ -209,7 +281,7 @@ bool XmileReader::ProcessFile(const std::string &filename, const char *contents,
       // unknown bucket below.
       continue;
     } else if (tag == "sim_specs") {
-      ok = ProcessSimSpecs(child, errs);
+      continue;  // already dispatched by the pre-pass above
     } else if (tag == "model_units") {
       ok = ProcessModelUnits(child, errs);
     } else if (tag == "dimensions") {
@@ -233,9 +305,19 @@ bool XmileReader::ProcessFile(const std::string &filename, const char *contents,
       continue;
     }
   }
-  // Whole-document validation deferred until every variable and <gf> has been
-  // walked: a graphical-function target may be forward-referenced, so a lookup
-  // application can only be judged phantom once the full document is in hand.
+  // Whole-document epilogue. Every step needs the full document in hand: a
+  // group's owner="..." may name a group declared later, a control value
+  // <sim_specs> left unstated may have been supplied by a <variables>
+  // declaration, the document-level time_units only defaults the control
+  // variables that did not spell out their own <units>, and a graphical-function
+  // target may be forward-referenced, so a lookup application can only be judged
+  // phantom once every <gf> has been walked.
+  if (ok)
+    ResolveGroupOwners(errs);
+  if (ok)
+    ApplyControlValues();
+  if (ok)
+    ApplyDeferredTimeUnits();
   if (ok && !ValidateLookupTargets(errs))
     ok = false;
   return ok;
@@ -443,15 +525,36 @@ UnitExpression *XmileReader::ParseUnitsString(const std::string &text) {
 void XmileReader::AttachVariableUnits(Variable *v, const char *unitsText) {
   if (!v || !unitsText)
     return;
+  // First source wins, and it wins for both the raw string and the parsed
+  // expression. Variable::AddUnits keeps whichever UnitExpression arrived first
+  // and offers no replace, so writing the raw string unconditionally (as this
+  // used to) let the two halves name different sources; both writers read the
+  // parsed half first (MDLGenerator::UnitsCommentTrailer,
+  // XMILEGenerator::generateSimSpecs), so the raw text was the half that got
+  // silently dropped. Gating both on one test keeps them in agreement no matter
+  // how many times a Variable is visited, and leaves the call order as the
+  // single place precedence is decided.
+  if (!v->GetUnitsString().empty() || v->Units())
+    return;
   v->SetUnitsString(unitsText);
   UnitExpression *ue = ParseUnitsString(unitsText);
   if (ue) {
-    // AddUnits returns false if a UnitExpression is already attached (a stock
-    // re-emit can call back through here on the same Variable). In that case
-    // the parsed expression is redundant; release it.
+    // The guard above already established that no UnitExpression is attached,
+    // so this hands ownership over; the delete is belt-and-braces against a
+    // future Variable that reports no units yet still refuses the add.
     if (!v->AddUnits(ue))
       delete ue;
   }
+}
+
+void XmileReader::ApplyDeferredTimeUnits() {
+  if (!_haveTimeUnits)
+    return;
+  // Running after the whole document has been walked is what makes a control
+  // variable's own <units> element beat the document-wide default:
+  // AttachVariableUnits is a no-op on a Variable that already carries units.
+  for (const ControlVar &c : _controls)
+    AttachVariableUnits(c.var, _timeUnits.c_str());
 }
 
 bool XmileReader::ProcessSimSpecs(tinyxml2::XMLElement *simSpecs, std::vector<std::string> &errs) {
@@ -471,16 +574,31 @@ bool XmileReader::ProcessSimSpecs(tinyxml2::XMLElement *simSpecs, std::vector<st
   // control variables are absent (XMILEGenerator::generateSimSpecs), so the
   // reader mirrors those defaults for missing child elements. SAVEPER
   // defaults to dt per the XMILE spec.
+  //
+  // Whether each value was SPELLED OUT is tracked alongside it: a stand-in for
+  // an absent child is the reader's own invention, and must lose to a
+  // <variables> declaration of the same control that does state a value (see
+  // ProcessControlDeclaration). An element that is present but holds no usable
+  // number still counts as stated -- the document addressed the value, badly --
+  // which keeps the resulting control identical to what it has always been.
   double startVal = 0.0;
   double stopVal = 100.0;
   double dtVal = 1.0;
+  bool haveStart = false;
+  bool haveStop = false;
+  bool haveDt = false;
 
-  if (tinyxml2::XMLElement *e = simSpecs->FirstChildElement("start"))
+  if (tinyxml2::XMLElement *e = simSpecs->FirstChildElement("start")) {
     startVal = e->DoubleText(0.0);
-  if (tinyxml2::XMLElement *e = simSpecs->FirstChildElement("stop"))
+    haveStart = true;
+  }
+  if (tinyxml2::XMLElement *e = simSpecs->FirstChildElement("stop")) {
     stopVal = e->DoubleText(100.0);
+    haveStop = true;
+  }
   if (tinyxml2::XMLElement *e = simSpecs->FirstChildElement("dt")) {
     dtVal = e->DoubleText(1.0);
+    haveDt = true;
     // dt reciprocal="true" means the body is N and the actual dt is 1/N. The
     // xmutil writer never emits reciprocal form (its dt is always the resolved
     // double), so a self-round-trip never sees it -- but Stella XMILE does,
@@ -495,29 +613,114 @@ bool XmileReader::ProcessSimSpecs(tinyxml2::XMLElement *simSpecs, std::vector<st
           errs.push_back("<dt reciprocal=\"true\"> with zero body; ignoring reciprocal");
       }
     }
+    // A dt of zero, or one that parsed to a non-finite value ("%lf" accepts
+    // "nan" and "inf"), makes the model unsimulable AND leaks into SAVEPER
+    // through the default below, so it is called out here rather than only
+    // where an explicit save interval is checked. The value is reported, not
+    // replaced: substituting the writer's 1.0 default would silently ship a
+    // different model than the document describes. <start>/<stop> get no
+    // equivalent check because every finite value is legal there (negative,
+    // zero, and descending ranges are all representable, and the writer already
+    // repairs stop <= start) and neither feeds another field's default.
+    if (!std::isfinite(dtVal) || dtVal <= 0.0)
+      errs.push_back(
+          "<dt> is not a finite positive number; TIME STEP -- and the SAVEPER that defaults to it -- is "
+          "unusable as written");
   }
+  // The save interval has two spellings in the wild and the reader accepts
+  // both. XMILE 1.0 defines no save-interval property on <sim_specs> at all
+  // (export cadence lives in the <data> section), so neither is standard: the
+  // isee:save_interval attribute is the isee vendor extension that Stella,
+  // simlin, and XMILEGenerator all actually emit, while the <save_step> child
+  // element is the explicit spelling this reader has accepted since it was
+  // written. When a document carries both -- a contradiction no writer
+  // produces -- the element wins: it is the unprefixed, self-describing form,
+  // and a vendor attribute is the weaker claim. tinyxml2 does no namespace
+  // processing, so the attribute's literal name carries the "isee:" prefix.
+  //
+  // A value that is unparseable, non-finite, or non-positive is not a cadence
+  // at all, so it is reported and the next-best source is used rather than
+  // being stored as-is. The guard stops there: any finite positive interval is
+  // the modeler's own and is preserved verbatim, however small. It is
+  // deliberately NOT a sanity filter for the writer's isee:sim_duration (which
+  // divides the run length by SAVEPER) -- that quotient guards itself, because
+  // SAVEPER can also reach the writer as an unchecked dt via the default below.
   double saveStepVal = dtVal;
-  if (tinyxml2::XMLElement *e = simSpecs->FirstChildElement("save_step"))
-    saveStepVal = e->DoubleText(dtVal);
+  auto takeSaveInterval = [&](tinyxml2::XMLError rc, double v, const char *spelling) {
+    if (rc == tinyxml2::XML_NO_TEXT_NODE) {
+      // An empty element (<save_step/>) expressed no interval at all, which is
+      // a different thing from expressing a malformed one.
+      errs.push_back(std::string(spelling) + " is empty; SAVEPER falls back to dt");
+      return false;
+    }
+    if (rc != tinyxml2::XML_SUCCESS) {
+      errs.push_back(std::string(spelling) + " is not a number; SAVEPER falls back to dt");
+      return false;
+    }
+    // isfinite before the sign test: tinyxml2 converts through sscanf("%lf"),
+    // which glibc happily fills with a NaN for "nan" -- and every comparison
+    // against a NaN is false, so `v <= 0.0` alone would wave it through.
+    if (!std::isfinite(v)) {
+      errs.push_back(std::string(spelling) + " is not a finite number; SAVEPER falls back to dt");
+      return false;
+    }
+    if (v <= 0.0) {
+      errs.push_back(std::string(spelling) + " is not positive; SAVEPER falls back to dt");
+      return false;
+    }
+    saveStepVal = v;
+    return true;
+  };
+  bool haveSaveInterval = false;
+  if (tinyxml2::XMLElement *e = simSpecs->FirstChildElement("save_step")) {
+    double v = 0.0;
+    // rc is sequenced before the call: the query's out-parameter must be
+    // written before takeSaveInterval's arguments are evaluated.
+    tinyxml2::XMLError rc = e->QueryDoubleText(&v);
+    haveSaveInterval = takeSaveInterval(rc, v, "<save_step>");
+  }
+  if (!haveSaveInterval) {
+    double v = 0.0;
+    tinyxml2::XMLError rc = simSpecs->QueryDoubleAttribute("isee:save_interval", &v);
+    if (rc != tinyxml2::XML_NO_ATTRIBUTE)
+      haveSaveInterval = takeSaveInterval(rc, v, "isee:save_interval");
+  }
 
   // Populate both the control Variables (for the writer's GetConstanValue
   // path) and the Model setters (for the engine's compiled-in fast path).
-  // Mirrors how VensimParse drops out of its Control section.
-  SetControlVariable("INITIAL TIME", startVal);
-  SetControlVariable("FINAL TIME", stopVal);
-  SetControlVariable("TIME STEP", dtVal);
-  SetControlVariable("SAVEPER", saveStepVal);
+  // Mirrors how VensimParse drops out of its Control section. The equations
+  // land here only for the values the document stated; ApplyControlValues fills
+  // in the rest once the whole document has been walked.
+  const double values[kControlCount] = {startVal, stopVal, dtVal, saveStepVal};
+  const bool stated[kControlCount] = {haveStart, haveStop, haveDt, haveSaveInterval};
+  for (int i = 0; i < kControlCount; i++) {
+    _controls[i].var = SetControlVariable(kControlNames[i], values[i], stated[i]);
+    _controls[i].value = values[i];
+    _controls[i].stated = stated[i];
+  }
   _model->set_initial_time(startVal);
   _model->set_finall_time(stopVal);  // misspelled in Model.h; mirrors header
   _model->set_dt(dtVal);
 
-  // time_units attribute attaches to TIME STEP as a raw units string; the
-  // XMILE writer reads this back via GetUnits("TIME STEP") with FINAL TIME
-  // and INITIAL TIME as fallbacks. Only the raw string is stored -- no
-  // UnitExpression is parsed for control variables.
+  // time_units is the model's unit of time, so it is the default for every
+  // control variable -- which is also how a Vensim .Control group spells it,
+  // and what the .mdl writer re-emits from these variables. It must go through
+  // AttachVariableUnits, not a bare SetUnitsString: the XMILE writer reads the
+  // unit back through Model::GetUnits (TIME STEP -> FINAL TIME -> INITIAL
+  // TIME), which returns the PARSED UnitExpression. With only the raw string
+  // stored, GetUnits returned NULL and every non-default time unit was
+  // rewritten to the writer's hardcoded "Months" default on each pass.
+  //
+  // Only recorded here, applied by ApplyDeferredTimeUnits once the document has
+  // been fully walked: a control variable that spells out its own <units> is
+  // making the more specific claim and must win, and that comparison is only
+  // meaningful after <model> has been read. SetControlVariable returned each
+  // control Variable into _controls[i].var, so no entry is null unless the name
+  // is occupied by a non-Variable symbol -- in which case there is nothing to
+  // attach units to.
   if (const char *tu = simSpecs->Attribute("time_units")) {
-    if (Variable *ts = FindVariable("TIME STEP"))
-      ts->SetUnitsString(tu);
+    _timeUnits = tu;
+    _haveTimeUnits = true;
   }
 
   return true;
@@ -525,29 +728,30 @@ bool XmileReader::ProcessSimSpecs(tinyxml2::XMLElement *simSpecs, std::vector<st
 
 bool XmileReader::ProcessModelUnits(tinyxml2::XMLElement *units, std::vector<std::string> &errs) {
   (void)errs;
-  // Model::UnitEquivs() stores comma-separated raw strings whose first field
-  // is the canonical unit name, the second is the eqn body, and any trailing
-  // fields are aliases. The XMILE writer reverses this in generateModelUnits;
-  // the reader mirrors the same shape so unit definitions survive round-trip.
+  // A UnitEquiv keeps <eqn> and <alias> apart, so a derived-unit formula stays a
+  // formula on the way back out; only the .mdl writer has to flatten the two
+  // into one comma-separated "22:" list, and it does that at emit time
+  // (UnitEquiv::MdlPayload), which is also where the field sanitizing that
+  // protects the "22:" line lives.
   for (tinyxml2::XMLElement *u = units->FirstChildElement("unit"); u; u = u->NextSiblingElement("unit")) {
     const char *uname = u->Attribute("name");
     if (!uname)
       continue;
-    std::string composed = uname;
+    UnitEquiv equiv;
+    equiv.name = uname;
     if (tinyxml2::XMLElement *eqnEl = u->FirstChildElement("eqn")) {
-      if (const char *txt = eqnEl->GetText()) {
-        composed += ",";
-        composed += txt;
-      }
+      // A present-but-empty <eqn/> -- which real Stella exports carry -- states
+      // no formula, so it stays empty rather than becoming a blank field that
+      // both writers would then have to render as something.
+      if (const char *txt = eqnEl->GetText())
+        equiv.eqn = txt;
     }
     for (tinyxml2::XMLElement *aliasEl = u->FirstChildElement("alias"); aliasEl;
          aliasEl = aliasEl->NextSiblingElement("alias")) {
-      if (const char *txt = aliasEl->GetText()) {
-        composed += ",";
-        composed += txt;
-      }
+      if (const char *txt = aliasEl->GetText())
+        equiv.aliases.push_back(txt);
     }
-    _model->UnitEquivs().push_back(composed);
+    _model->UnitEquivs().push_back(equiv);
   }
   return true;
 }
@@ -559,22 +763,7 @@ ModelGroup *XmileReader::ProcessGroup(tinyxml2::XMLElement *groupEl, std::vector
     return nullptr;
   }
   std::string normName = NormalizeName(name);
-
-  // The XMILE owner="..." attribute references another group by name. The
-  // walker may visit groups in any order, so an unresolved owner here just
-  // means "no owner" -- the view walk preserves the original order, and any
-  // forward reference becomes a name-only inference downstream.
-  ModelGroup *owner = nullptr;
-  if (const char *ownerName = groupEl->Attribute("owner"))
-    owner = FindGroupByName(NormalizeName(ownerName));
-
-  // The same group can appear under multiple <view> elements in a multi-view
-  // file; reusing keeps Model::Groups() unique by name.
-  ModelGroup *group = FindGroupByName(normName);
-  if (!group) {
-    group = new ModelGroup(normName, owner);
-    _model->Groups().push_back(group);
-  }
+  ModelGroup *group = RegisterGroup(normName, groupEl->Attribute("owner"), errs);
 
   for (tinyxml2::XMLElement *vEl = groupEl->FirstChildElement("var"); vEl; vEl = vEl->NextSiblingElement("var")) {
     const char *vname = vEl->GetText();
@@ -590,10 +779,90 @@ ModelGroup *XmileReader::ProcessGroup(tinyxml2::XMLElement *groupEl, std::vector
       if (!v)
         continue;
     }
-    v->SetGroup(group);
-    group->vVariables.push_back(v);
+    AddGroupMember(group, v, errs);
   }
   return group;
+}
+
+ModelGroup *XmileReader::RegisterGroup(const std::string &normName, const char *ownerAttr,
+                                       std::vector<std::string> &errs) {
+  // The same group can appear under multiple <view> elements in a multi-view
+  // file; reusing keeps Model::Groups() unique by name.
+  ModelGroup *group = FindGroupByName(normName);
+  if (!group) {
+    group = new ModelGroup(normName, /*owner=*/nullptr);
+    _model->Groups().push_back(group);
+  }
+  if (!ownerAttr)
+    return group;
+  const std::string ownerName = NormalizeName(ownerAttr);
+  if (ownerName.empty())
+    return group;
+  // Held rather than resolved -- see ResolveGroupOwners for why the lookup
+  // cannot happen here. A repeated <group> element re-states the same claim;
+  // only a claim that names a DIFFERENT owner is a contradiction, and the first
+  // one wins, matching how the reader settles every other doubly-stated fact.
+  for (const std::pair<ModelGroup *, std::string> &claim : _pendingGroupOwners) {
+    if (claim.first != group)
+      continue;
+    if (claim.second != ownerName)
+      errs.push_back("<group name=\"" + normName + "\">: owner=\"" + ownerName + "\" contradicts the earlier owner=\"" +
+                     claim.second + "\"; keeping the first");
+    return group;
+  }
+  _pendingGroupOwners.emplace_back(group, ownerName);
+  return group;
+}
+
+void XmileReader::AddGroupMember(ModelGroup *group, Variable *v, std::vector<std::string> &errs) {
+  if (!group || !v)
+    return;
+  ModelGroup *current = v->GetGroup();
+  if (current == group)
+    return;  // the same group listed under two views, or a repeated <var>
+  if (current) {
+    errs.push_back("<group name=\"" + group->sName + "\">: '" + v->GetName() + "' already belongs to group '" +
+                   current->sName + "'; keeping the first grouping");
+    return;
+  }
+  v->SetGroup(group);
+  group->vVariables.push_back(v);
+}
+
+void XmileReader::ResolveGroupOwners(std::vector<std::string> &errs) {
+  for (const std::pair<ModelGroup *, std::string> &claim : _pendingGroupOwners) {
+    ModelGroup *group = claim.first;
+    const std::string &ownerName = claim.second;
+    ModelGroup *owner = FindGroupByName(ownerName);
+    if (!owner) {
+      errs.push_back("<group name=\"" + group->sName + "\">: owner=\"" + ownerName +
+                     "\" names no group in this document; the group is left unowned");
+      continue;
+    }
+    if (owner == group) {
+      errs.push_back("<group name=\"" + group->sName + "\">: a group cannot own itself; the group is left unowned");
+      continue;
+    }
+    // Every pOwner link is set right here, and only after this walk has cleared
+    // it, so the chain being walked is acyclic by construction -- which both
+    // bounds the loop and is what the writers require. Refusing the link that
+    // would close the cycle (rather than the whole chain) keeps as much of the
+    // stated nesting as can be honored.
+    bool cycles = false;
+    for (ModelGroup *up = owner->pOwner; up; up = up->pOwner) {
+      if (up == group) {
+        cycles = true;
+        break;
+      }
+    }
+    if (cycles) {
+      errs.push_back("<group name=\"" + group->sName + "\">: owner=\"" + ownerName +
+                     "\" would close a group ownership cycle; the group is left unowned");
+      continue;
+    }
+    group->pOwner = owner;
+  }
+  _pendingGroupOwners.clear();
 }
 
 ModelGroup *XmileReader::FindGroupByName(const std::string &norm) {
@@ -704,6 +973,20 @@ bool XmileReader::ProcessDimensions(tinyxml2::XMLElement *dimsEl, std::vector<st
       return false;
     }
     std::string normName = NormalizeName(dimName);
+    // A subscript family is not a value, so it can never be what a control
+    // variable holds -- and Vensim reserves the four control names, so the dim
+    // and the control cannot coexist as two symbols on the way out. Dropping the
+    // dim (rather than appending its element list as a second equation, which
+    // .Control would emit as a duplicate definition) keeps the control intact.
+    // The declaration paths handle the same collision through
+    // ProcessControlDeclaration; a <dim> reaches neither DeclareVariable nor an
+    // equation-bearing element, so it is checked here.
+    const int controlIdx = ControlIndexOf(normName);
+    if (controlIdx >= 0) {
+      errs.push_back(std::string("<dim name=\"") + dimName + "\">: '" + normName + "' is the Vensim control variable " +
+                     kControlNames[controlIdx] + " and cannot also name a dimension; the dimension is dropped");
+      continue;
+    }
     Variable *dimVar = InsertVariable(normName);
     if (!dimVar) {
       errs.push_back(std::string("<dim name=\"") + dimName + "\">: name collides with a non-variable symbol");
@@ -852,6 +1135,11 @@ bool XmileReader::ProcessAuxOrFlow(tinyxml2::XMLElement *el, std::vector<std::st
   Variable *v = DeclareVariable(el, errs);
   if (!v)
     return false;
+  // A declaration of one of the four control names is <sim_specs>'s business,
+  // not an equation of its own; the non_negative advisory below would be noise
+  // on a variable whose equation is about to be dropped.
+  if (ProcessControlDeclaration(el, v, errs))
+    return true;
   WarnIfNonNegative(el, v, errs);
 
   // Per-element form is signaled by any <element subscript="..."> child; the
@@ -867,6 +1155,8 @@ bool XmileReader::ProcessStandaloneGf(tinyxml2::XMLElement *el, std::vector<std:
   Variable *v = DeclareVariable(el, errs);
   if (!v)
     return false;
+  if (ProcessControlDeclaration(el, v, errs))
+    return true;
   // Same shape as the "no eqn + gf" branch of ProcessAppliesToAllEquation: the
   // equation's RHS is the ExpressionTable itself with the '(' token, matching
   // VensimParse::AddTable's standalone lookup form.
@@ -1298,6 +1588,12 @@ bool XmileReader::ProcessStock(tinyxml2::XMLElement *stock, std::vector<std::str
   Variable *v = DeclareVariable(stock, errs);
   if (!v)
     return false;
+  // A control name cannot be a stock: synthesizing the INTEG would put
+  // `TIME STEP = INTEG(...)` in .Control, which Vensim rejects. Returning here
+  // also leaves _flowToStocks untouched, so the view pass does not try to anchor
+  // a pipe on a stock that was never built.
+  if (ProcessControlDeclaration(stock, v, errs))
+    return true;
   // DeclareVariable verified the name attribute; EnsureCanonicalName made the
   // Variable's stored name the normalized form.
   const char *name = stock->Attribute("name");
@@ -1528,25 +1824,184 @@ bool XmileReader::ProcessModel(tinyxml2::XMLElement *model, std::vector<std::str
   return true;
 }
 
-void XmileReader::SetControlVariable(const std::string &name, double value) {
+Variable *XmileReader::SetControlVariable(const std::string &name, double value, bool stated) {
   // Mirror the shape VensimParse produces for control variables: a Variable
   // in the namespace whose first equation is a constant-numeric expression.
   // The writer's GetConstanValue path reads from this equation; the engine
   // also has parallel _initial_time / _final_time / _dt fields the caller
   // updates separately.
   //
-  // ProcessSimSpecs is dispatched before ProcessModel in the envelope loop,
-  // so these variables are freshly created and equation-free here. However,
-  // a <group><var>INITIAL TIME</var></group> placeholder created by
-  // ProcessGroup can arrive before sim_specs has run (if the <views> walk
-  // precedes <sim_specs> in the document). Guard against appending a second
-  // equation onto an already-populated variable.
+  // ProcessFile's pre-pass dispatches every <sim_specs> before <model>, so the
+  // variable is normally freshly created and equation-free here; a document
+  // carrying two <sim_specs> elements is the one way it is not. Appending in
+  // that case would leave the Variable with two equations, which MDLGenerator
+  // emits as two .Control entries -- a duplicate definition Vensim rejects --
+  // so the first statement of a value stands and SettleControl reconciles the
+  // Model field back to it.
   Variable *v = InsertVariable(name);
   if (!v)
-    return;
+    return nullptr;
+  if (stated && v->GetAllEquations().empty())
+    AddEquationFor(v, nullptr, new ExpressionNumber(pSymbolNameSpace, value), '=');
+  return v;
+}
+
+int XmileReader::ControlIndexOf(const std::string &name) {
+  static_assert(sizeof(kControlNames) / sizeof(kControlNames[0]) == kControlCount,
+                "kControlNames and ControlIndex must describe the same four control variables");
+  // Compare under the namespace's own identifier equivalence rather than by
+  // string: ToLowerSpace lowercases and folds '_' / whitespace runs to a single
+  // space, so `TIME_STEP` -- the spelling SDEverywhere and PySD exports use --
+  // is the same symbol as the `TIME STEP` <sim_specs> registers, and a literal
+  // compare would miss it. MDLGenerator::IsControlVar answers the same question
+  // the same way when deciding what belongs in .Control.
+  std::string *canon = SymbolNameSpace::ToLowerSpace(name);
+  int idx = -1;
+  for (int i = 0; i < kControlCount; i++) {
+    std::string *want = SymbolNameSpace::ToLowerSpace(kControlNames[i]);
+    const bool hit = (*canon == *want);
+    delete want;
+    if (hit) {
+      idx = i;
+      break;
+    }
+  }
+  delete canon;
+  return idx;
+}
+
+bool XmileReader::ProcessControlDeclaration(tinyxml2::XMLElement *el, Variable *v, std::vector<std::string> &errs) {
+  const int idx = ControlIndexOf(v->GetName());
+  if (idx < 0)
+    return false;  // an ordinary variable: the caller owns it entirely
+
+  // XMILE does not reserve these names -- <sim_specs> is where every XMILE tool
+  // reads the run's start, stop and dt, and a variable in <variables> that
+  // happens to be called TIME_STEP is, to XMILE, just a variable. Vensim .mdl
+  // does reserve them, so the two collapse onto one symbol on the way out and
+  // the conversion has to pick a value. It picks <sim_specs>: that is the value
+  // the source document actually simulates with, and it is the value already
+  // sitting in the engine's own initial_time/final_time/dt fields -- fields
+  // Model::GetConstanValue falls back to, so letting the declaration overwrite
+  // the equation would leave the two halves of the same answer disagreeing.
+  //
+  // The declaration therefore contributes no equation, with ONE exception: when
+  // <sim_specs> never stated the value, the number it supplied was invented by
+  // this reader (1.0 for a missing <dt>, and so on). An invented default must
+  // not beat something the modeler wrote, so a declaration that states a usable
+  // constant is allowed through to fill the gap and ApplyControlValues then
+  // pushes it into the engine field. Everything else the declaration carries --
+  // <units>, <doc> -- is attached either way; only the equation is at stake.
+  const char *tag = el->Name();
+  const bool auxOrFlow = tag && (std::strcmp(tag, "aux") == 0 || std::strcmp(tag, "flow") == 0);
+  // A control variable is a scalar constant. A subscripted declaration, a
+  // graphical function, or a stock's INTEG is not a value the engine's double
+  // fields or Model::GetConstanValue can represent at all, so those shapes can
+  // never supply one -- and a synthesized INTEG under a control name would put
+  // `TIME STEP = INTEG(...)` in .Control, which Vensim rejects outright.
+  const bool scalarShape = auxOrFlow && !el->FirstChildElement("dimensions") && !el->FirstChildElement("element") &&
+                           !el->FirstChildElement("gf");
+  tinyxml2::XMLElement *eqnEl = scalarShape ? el->FirstChildElement("eqn") : nullptr;
+  double declared = 0.0;
+  const bool haveDeclared = eqnEl && ParseNumericLiteral(eqnEl->GetText(), &declared);
+
+  if (haveDeclared && v->GetAllEquations().empty()) {
+    // Nothing has claimed this control yet -- <sim_specs> did not state it, and
+    // no earlier declaration filled it -- so let the caller attach the
+    // declaration through the ordinary path, <units> and <doc> included.
+    return false;
+  }
+
+  // <units> and <doc> belong to the Variable whatever becomes of the equation --
+  // a control's own <units> is still the more specific claim than the
+  // document-wide time_units. AttachVariableUnits needs the Variable to have
+  // content, which it only gets with its first equation, so a control still
+  // waiting on ApplyControlValues holds the element until SettleControl has one.
+  // First source wins there as it does everywhere else, hence the null test.
   if (!v->GetAllEquations().empty())
+    AttachUnitsAndDoc(el, v);
+  else if (!_controls[idx].pendingUnitsAndDoc)
+    _controls[idx].pendingUnitsAndDoc = el;
+
+  // The value the control already holds. Reaching here with a usable constant
+  // declaration means something already claimed the slot, so this is the value
+  // that wins; with no usable declaration there is nothing to compare and the
+  // message says only that the declaration was dropped.
+  double settled = 0.0;
+  const bool haveSettled = ConstantValueOf(v, &settled);
+  if (haveDeclared && haveSettled && declared == settled)
+    return true;  // an agreeing restatement says nothing worth reporting
+
+  std::string detail;
+  if (haveDeclared && haveSettled)
+    detail =
+        "the declared " + mdl::FormatMDLNumber(declared) + " is dropped in favor of " + mdl::FormatMDLNumber(settled);
+  else
+    detail = "this declaration cannot state one (a control variable is a scalar constant) and is dropped";
+  errs.push_back(ElementContext(el) + "'" + v->GetName() + "' is the Vensim control variable " + kControlNames[idx] +
+                 ", whose value comes from <sim_specs>: " + detail);
+  return true;
+}
+
+void XmileReader::ApplyControlValues() {
+  // Runs once the whole document has been walked, so a <variables> declaration
+  // of a control name <sim_specs> left unstated has already had its chance to
+  // supply the value (see ProcessControlDeclaration). Two jobs: give every
+  // control the one equation it is still missing, and make the engine's own
+  // time fields agree with the constant that equation holds.
+  //
+  // Each fallback is what <sim_specs> recorded, which for a document that
+  // carried none is the Model's own default (seeded in the ctor). SAVEPER is
+  // settled last and is the one that cannot use its recorded value unless the
+  // document stated it: SAVEPER defaults to dt, and dt is only final once
+  // TIME STEP has settled -- a declaration may just have supplied it.
+  SettleControl(kInitialTime, _controls[kInitialTime].value);
+  SettleControl(kFinalTime, _controls[kFinalTime].value);
+  SettleControl(kTimeStep, _controls[kTimeStep].value);
+  SettleControl(kSaveper, _controls[kSaveper].stated ? _controls[kSaveper].value : _model->dt());
+}
+
+void XmileReader::SettleControl(int idx, double fallback) {
+  Variable *v = _controls[idx].var;
+  if (!v) {
+    // No <sim_specs> ran, so nothing materialized the control -- but <variables>
+    // may still have declared it. Never create one here: a document that states
+    // no sim specs at all leaves MDLGenerator::GenerateControl to synthesize the
+    // .Control entries from the Model's own fields, and inventing a Variable
+    // would change which of those two paths runs.
+    v = FindVariable(kControlNames[idx]);
+    if (!v)
+      return;
+  }
+  if (v->GetAllEquations().empty())
+    AddEquationFor(v, nullptr, new ExpressionNumber(pSymbolNameSpace, fallback), '=');
+  // The Variable now has content, so a declaration's <units>/<doc> that had to
+  // wait for it can land -- still ahead of ApplyDeferredTimeUnits, which is what
+  // keeps a control's own <units> beating the document-wide time_units.
+  if (tinyxml2::XMLElement *pending = _controls[idx].pendingUnitsAndDoc)
+    AttachUnitsAndDoc(pending, v);
+
+  // Model::GetConstanValue reads the equation and falls back to the field, so a
+  // field that disagrees with a constant equation is a split brain no consumer
+  // can see. Only a constant can be mirrored; for anything else the field keeps
+  // what <sim_specs> put there, which is exactly what GetConstanValue then
+  // returns for that variable.
+  double value = 0.0;
+  if (!ConstantValueOf(v, &value))
     return;
-  AddEquationFor(v, nullptr, new ExpressionNumber(pSymbolNameSpace, value), '=');
+  switch (idx) {
+  case kInitialTime:
+    _model->set_initial_time(value);
+    break;
+  case kFinalTime:
+    _model->set_finall_time(value);  // misspelled in Model.h; mirrors header
+    break;
+  case kTimeStep:
+    _model->set_dt(value);
+    break;
+  default:
+    break;  // SAVEPER has no Model field of its own
+  }
 }
 
 Variable *XmileReader::FindVariable(const std::string &name) {

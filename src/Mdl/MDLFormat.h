@@ -11,6 +11,26 @@ class ExpressionTable;
 // Ported from the simlin MDL writer (src/simlin-engine/src/mdl/writer.rs).
 namespace mdl {
 
+// Whether a free-text field spans multiple lines or must collapse to one.
+// Multiline preserves internal breaks as LF; SingleLine collapses each run of
+// line breaks to a single space.
+enum class FreeTextLineMode { Multiline, SingleLine };
+
+// Make modeler-authored free text (variable units/documentation, group names,
+// unit-equivalence tokens) structurally safe to embed in a .mdl entry, so a
+// raw structural character cannot terminate the construct early and re-parse the
+// remainder as phantom variables (#849). The substitutions, all documented and
+// never a silent drop: `|` -> `/` (a NON-whitespace substitute, so a field-final
+// `|` cannot become a trailing space the reader trims -- which would break
+// comment-field idempotence); the four sketch section-terminator runs -> a
+// space; each char in `extraForbidden` (a `~` in a units field, a `,` in a `22:`
+// token) -> a space. Line endings normalize LOSSLESSLY to LF (`\r\n` and lone
+// `\r` -> `\n`) so a field carrying a `\r` from a CRLF source is a fixpoint
+// rather than accreting a carriage return each write; Print's single final
+// LF->CRLF pass restores CRLF. Ported from simlin's sanitize_free_text
+// (src/simlin-engine/src/mdl/writer.rs).
+std::string SanitizeFreeText(const std::string &raw, FreeTextLineMode mode, const std::string &extraForbidden);
+
 // True if the (already-dequoted) name must be wrapped in double quotes for
 // Vensim. Interior spaces are allowed unquoted; quoting is required for an empty
 // name, a leading or trailing space, a leading character outside [A-Za-z_], or

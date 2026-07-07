@@ -143,6 +143,7 @@
             './test/xmile/StockFlowRoundTripTest.cpp',
             './test/xmile/ArrayRoundTripTest.cpp',
             './test/xmile/LookupRoundTripTest.cpp',
+            './test/xmile/FreeTextSanitizeRoundTripTest.cpp',
             './test/xmile/ViewRoundTripTest.cpp',
             './test/xmile/CorpusRoundTripTest.cpp',
             './test/xmile/XmileCorpusTest.cpp',

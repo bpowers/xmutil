@@ -47,7 +47,113 @@ bool TokenAllowsUnarySign(const std::string &tok) {
   return trimmed == "+" || trimmed == "-" || trimmed == "*" || trimmed == "/" || trimmed == "^";
 }
 
+// The four sketch section-terminator runs GenerateSketch emits (see
+// MDLGenerator.cpp): the canonical open/close carry three backslashes, the short
+// variants two. A run appearing verbatim in free text would let the settings
+// reader mistake it for a real section boundary, so SanitizeFreeText neutralizes
+// them to a space. Each C++ literal below doubles every backslash.
+// (byte contents in the same order shown in GenerateSketch; no trailing
+// backslash in these comments, which would splice the next line)
+const char *kSectionTerminatorOpen = "\\\\\\---///";
+const char *kSectionTerminatorClose = "///---\\\\\\";
+const char *kSectionTerminatorOpenShort = "\\\\---///";
+const char *kSectionTerminatorCloseShort = "///---\\\\";
+
+void ReplaceAll(std::string &s, const std::string &from, const std::string &to) {
+  if (from.empty())
+    return;
+  size_t pos = 0;
+  while ((pos = s.find(from, pos)) != std::string::npos) {
+    s.replace(pos, from.size(), to);
+    pos += to.size();
+  }
+}
+
+// Replace every sketch section-terminator run in `s` with a space, repeating
+// until the string stops changing.
+//
+// Repeating is what makes the result terminator-free rather than merely
+// terminator-fewer: `find` walks left to right, and splicing out a run joins the
+// text on either side of it, so the join can spell a shorter run that the scan
+// has already walked past. Each replacement swaps eight or nine characters for
+// one, so the string strictly shrinks whenever anything changes and the loop
+// terminates. The replacement itself cannot re-form a run, since neither run
+// contains a space.
+void NeutralizeSectionTerminators(std::string &s) {
+  for (;;) {
+    // Only pay the four scans when a backslash and a "---///"/"///---" fragment
+    // are both present (the guard simlin uses).
+    if (s.find('\\') == std::string::npos ||
+        (s.find("---///") == std::string::npos && s.find("///---") == std::string::npos))
+      return;
+    const size_t before = s.size();
+    // Replace the three-backslash (canonical) runs BEFORE the two-backslash
+    // variants: a canonical run contains the short run as a substring, so the
+    // reverse order would leave a stray backslash behind.
+    ReplaceAll(s, kSectionTerminatorOpen, " ");
+    ReplaceAll(s, kSectionTerminatorClose, " ");
+    ReplaceAll(s, kSectionTerminatorOpenShort, " ");
+    ReplaceAll(s, kSectionTerminatorCloseShort, " ");
+    if (s.size() == before)
+      return;
+  }
+}
+
+// Emit a normalized line break for SanitizeFreeText: a canonical LF for a
+// multi-line field, or a single collapsed space for a single-line field.
+void PushLineBreak(std::string &out, mdl::FreeTextLineMode mode, bool &prevWasBreak) {
+  if (mode == mdl::FreeTextLineMode::Multiline) {
+    // Preserve internal breaks exactly (do not collapse blank lines).
+    out += '\n';
+  } else if (!prevWasBreak) {
+    out += ' ';
+    prevWasBreak = true;
+  }
+}
+
 }  // namespace
+
+std::string SanitizeFreeText(const std::string &raw, FreeTextLineMode mode, const std::string &extraForbidden) {
+  std::string out;
+  out.reserve(raw.size());
+  bool prevWasBreak = false;
+  for (size_t i = 0; i < raw.size(); i++) {
+    char c = raw[i];
+    if (c == '\r') {
+      // Normalize CRLF and lone CR to the same break handling as LF; a following
+      // LF is consumed so CRLF collapses to a single break.
+      if (i + 1 < raw.size() && raw[i + 1] == '\n')
+        i++;
+      PushLineBreak(out, mode, prevWasBreak);
+    } else if (c == '\n') {
+      PushLineBreak(out, mode, prevWasBreak);
+    } else if (c == '|') {
+      out += '/';
+      prevWasBreak = false;
+    } else if (extraForbidden.find(c) != std::string::npos) {
+      out += ' ';
+      prevWasBreak = false;
+    } else {
+      out += c;
+      prevWasBreak = false;
+    }
+  }
+
+  // The terminator runs are neutralized AFTER the per-char pass, not before it,
+  // because the per-char pass is itself a source of them: it rewrites '|' as
+  // '/', so text the pre-pass saw as terminator-free ("\\\---||||") leaves that
+  // pass spelling a live open-terminator run. Scanning first left the run in the
+  // output, and the NEXT conversion's pre-pass -- now looking at slashes -- ate
+  // it along with the rest of the field, so emit(1) and emit(2) disagreed and
+  // text silently vanished on the second write. Running last means the scan sees
+  // exactly the bytes the reader will.
+  //
+  // The per-char pass stays idempotent over this, so the order does not merely
+  // move the problem: neutralizing only ever inserts a space, which that pass
+  // passes through unchanged.
+  NeutralizeSectionTerminators(out);
+  return out;
+}
 
 bool NeedsMDLQuoting(const std::string &name) {
   if (name.empty())
