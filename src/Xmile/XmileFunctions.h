@@ -11,10 +11,9 @@ class Variable;
 // Free functions that translate XMILE-canonical names into the Vensim-canonical
 // names xmutil's engine speaks. Both tables mirror the un-rename rules in the
 // simlin writer (third_party/simlin/src/simlin-engine/src/mdl/writer.rs around
-// the mdl_bare_keyword / xmile_to_mdl_function_name / reorder_args helpers);
-// see docs/implementation-plans/2026-05-27-xmile-reader/phase_02.md for the
-// authoritative list. These helpers are pure lookups: they do not own state and
-// do not touch global parser objects.
+// the mdl_bare_keyword / xmile_to_mdl_function_name / reorder_args helpers),
+// which are the authoritative list. These helpers are pure lookups: they do not
+// own state and do not touch global parser objects.
 namespace xmile {
 
 // Resolve an XMILE function name (lowercased, possibly with underscores) to the

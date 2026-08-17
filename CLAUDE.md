@@ -65,7 +65,6 @@ CLI binary `XMUtil`, plus a WASM build and (optionally) a Qt UI.
   system there). A gitignored `third_party/simlin/` reference checkout of the
   simlin project may exist locally; do NOT edit it (it has its own
   CLAUDE.md/AGENTS.md files that apply only to that subtree).
-- `docs/design-plans/`, `docs/implementation-plans/` - design and plan docs.
 
 ## Testing
 The project had zero tests before the mdl-writer work. Tests now live under

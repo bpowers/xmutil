@@ -161,7 +161,8 @@ direction.
   them from clang-format -- clang-format is not idempotent on bison output.
 - **Function name translation is table-driven** (`xmile::LookupFunction` /
   `xmile::ReorderArgs`). Tables mirror the un-rename rules in the simlin
-  writer; see `docs/implementation-plans/2026-05-27-xmile-reader/phase_02.md`.
+  writer (the design and implementation plans that spell them out were kept
+  out of the tree; see this branch's git history for `docs/`).
   Arg reorder applies only where XMILE and Vensim signatures disagree
   (DELAY N, SMOOTH N, RANDOM NORMAL). The underbar->space + uppercase
   fallback path is intentional.
