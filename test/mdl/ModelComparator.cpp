@@ -28,6 +28,15 @@ namespace {
 // comparing -- the same strip FormatMDLIdent itself performs -- lets the
 // comparison see through that benign requoting without masking a real rename
 // (the interiors must still match exactly, including any backslash escapes).
+// Vensim's identifier equivalence (case-fold, '_' and whitespace runs are one
+// space), the same canon MDLGenerator::IsControlVar compares under.
+bool IsSimulationClock(const std::string &name) {
+  std::string *canon = SymbolNameSpace::ToLowerSpace(name);
+  bool is_clock = *canon == "time";
+  delete canon;
+  return is_clock;
+}
+
 std::string NormalizeName(const std::string &name) {
   if (name.size() >= 2 && name.front() == '"' && name.back() == '"')
     return name.substr(1, name.size() - 2);
@@ -49,6 +58,13 @@ std::string NormalizeName(const std::string &name) {
 // .Control group and the writer never materializes controls into it, so when
 // comparing a macro body the controls (if a body var happened to share such a
 // name) are ordinary variables and must NOT be dropped.
+//
+// The simulation clock is dropped unconditionally. Both readers register a
+// "Time" Variable to resolve references to it (never a definition -- it holds
+// no equation), and neither writer emits one; XMILEGenerator::generateSimSpecs
+// additionally marks it Unwanted on the model it prints, so a printed model and
+// its re-parse disagree on that flag alone. Filtering by Unwanted above would
+// then report the re-parse's clock as a variable "only in b".
 std::map<std::string, Variable *> IndexVariables(const std::vector<Variable *> &vars, bool drop_controls) {
   std::map<std::string, Variable *> by_name;
   for (Variable *var : vars) {
@@ -57,6 +73,8 @@ std::map<std::string, Variable *> IndexVariables(const std::vector<Variable *> &
     if (var->VariableType() == XMILE_Type_ARRAY_ELM)
       continue;
     if (drop_controls && MDLGenerator::IsControlVar(var->GetName()))
+      continue;
+    if (IsSimulationClock(var->GetName()))
       continue;
     by_name[NormalizeName(var->GetName())] = var;
   }

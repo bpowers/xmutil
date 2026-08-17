@@ -21,6 +21,7 @@ Variable::Variable(SymbolNameSpace *sns, const std::string &name) : Symbol(sns, 
   _unwanted = false;
   _hasUpstream = _hasDownstream = false;
   _synthesizedNetFlow = false;
+  _synthesizedFlowProxy = false;
   bAsFlow = false;
   bUsesMemory = false;
 }
@@ -193,25 +194,28 @@ XMILE_Type Variable::MarkTypes(SymbolNameSpace *sns) {
     }
   }
   if (!gotone) {
-    if (mVariableType == XMILE_Type_UNKNOWN) {
-      // check to see if this is decorated as a flow
-      if (this->AsFlow())
-        mVariableType = XMILE_Type_FLOW;
-      else if (this->UsesMemory())
-        mVariableType = XMILE_Type_DELAYAUX;
-      else
-        mVariableType = XMILE_Type_AUX;
-    }
+    if (mVariableType == XMILE_Type_UNKNOWN)
+      AssignNonStockType();
     return mVariableType;
   }
   mVariableType = XMILE_Type_STOCK;
   return mVariableType;
 }
 
-Variable *Variable::AddRelated(SymbolNameSpace *sns, const char* suffix, XMILE_Type type) {
+void Variable::AssignNonStockType() {
+  // check to see if this is decorated as a flow
+  if (this->AsFlow())
+    mVariableType = XMILE_Type_FLOW;
+  else if (this->UsesMemory())
+    mVariableType = XMILE_Type_DELAYAUX;
+  else
+    mVariableType = XMILE_Type_AUX;
+}
+
+Variable *Variable::AddRelated(SymbolNameSpace *sns, const char *suffix, XMILE_Type type) {
   std::string name = this->GetName() + suffix;
   Variable *v = new Variable(sns, name);
-  v->SetVariableType(XMILE_Type_FLOW);
+  v->SetVariableType(type);
   v->SetView(this->GetView());
   ModelGroup *group = this->GetGroup();
   if (group) {
@@ -221,8 +225,11 @@ Variable *Variable::AddRelated(SymbolNameSpace *sns, const char* suffix, XMILE_T
   return v;
 }
 
-Variable *Variable::PreventFlowGhost(SymbolNameSpace *sns, Variable* v) {
-  Variable *newv = this->AddRelated(sns, " flow", XMILE_Type_AUX);
+Variable *Variable::PreventFlowGhost(SymbolNameSpace *sns, Variable *v) {
+  // The proxy takes the modeler's flow's place in this stock's flow list, so it
+  // is the flow; the modeler's variable keeps whatever type it already had.
+  Variable *newv = this->AddRelated(sns, " flow", XMILE_Type_FLOW);
+  newv->MarkSynthesizedFlowProxy();
   std::vector<Equation *> veq = v->GetAllEquations();
   for (Equation *eq : veq) {
     // left hand side for this variable
@@ -231,11 +238,35 @@ Variable *Variable::PreventFlowGhost(SymbolNameSpace *sns, Variable* v) {
     Equation *neweq = new Equation(sns, lhs, exvar, '=');
     newv->AddEq(neweq);
   }
- return newv;
+  return newv;
 }
 
+void Variable::LocalizeCrossViewFlows(SymbolNameSpace *sns, std::vector<Variable *> &displaced) {
+  if (mVariableType != XMILE_Type_STOCK)
+    return;
+  for (Variable *&v : mInflows) {
+    if (v->GetView() != _view) {
+      displaced.push_back(v);
+      v = this->PreventFlowGhost(sns, v);
+    }
+  }
+  for (Variable *&v : mOutflows) {
+    if (v->GetView() != _view) {
+      displaced.push_back(v);
+      v = this->PreventFlowGhost(sns, v);
+    }
+  }
+}
 
-void Variable::MarkStockFlows(SymbolNameSpace *sns, bool as_sectors) {
+void Variable::UndoFlowPromotion() {
+  // MarkStockFlows promotes every flow it lists to FLOW; the type before that
+  // came from MarkTypes, whose non-stock rule AssignNonStockType is. A stock
+  // used as another stock's flow was never promoted, so it is left alone.
+  if (mVariableType == XMILE_Type_FLOW)
+    AssignNonStockType();
+}
+
+void Variable::MarkStockFlows(SymbolNameSpace *sns) {
   // second pass, get the flow lists for everyone -- NOTE there is a bug in this code
   // because we don't check subscripts on the flows list so they may match even though
   // they shouldn't eg STOCK[A]=INTEG(FLOW[B],0) STOCK[B]=INTEG(FLOW[A],0)
@@ -282,19 +313,14 @@ void Variable::MarkStockFlows(SymbolNameSpace *sns, bool as_sectors) {
       fv->SetHasUpstream(true);
   }
   if (match) {
-    // got inflows/outflows but we need to check if any of them are defined
-    // in a different view and would therefore end up in a different module
+    // A flow drawn in a different view than its stock is left in place here; the
+    // XMILE module emission substitutes a local proxy for it (see
+    // LocalizeCrossViewFlows), the other outputs keep it as the modeler wrote it.
     for (Variable *v : flow_lists[0].Inflows()) {
-      if (!as_sectors && v->GetView() != _view) {
-        v = this->PreventFlowGhost(sns, v);
-      }
       v->SetVariableType(XMILE_Type_FLOW);
       mInflows.push_back(v);
     }
     for (Variable *v : flow_lists[0].Outflows()) {
-      if (!as_sectors && v->GetView() != _view) {
-        v = this->PreventFlowGhost(sns, v);
-      }
       v->SetVariableType(XMILE_Type_FLOW);
       mOutflows.push_back(v);
     }

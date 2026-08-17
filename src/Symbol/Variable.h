@@ -287,15 +287,32 @@ public:
     pVariableContent->SetActiveValue(off, val);
   }
   inline void SetAlternateName(const std::string &altname) {
-    if (pVariableContent) pVariableContent->SetAlternateName(altname);
+    if (pVariableContent)
+      pVariableContent->SetAlternateName(altname);
   }
   std::string GetAlternateName(void);
 
   void PurgeAFOEq();
   XMILE_Type MarkTypes(SymbolNameSpace *sns);  // mark the variableType of inflows/outflows
-  Variable *AddRelated(SymbolNameSpace *sns, const char* suffix, XMILE_Type type);
-  Variable *PreventFlowGhost(SymbolNameSpace *sns, Variable* v);
-  void MarkStockFlows(SymbolNameSpace *sns, bool as_sectors);  // mark the variableType of inflows/outflows
+  Variable *AddRelated(SymbolNameSpace *sns, const char *suffix, XMILE_Type type);
+  Variable *PreventFlowGhost(SymbolNameSpace *sns, Variable *v);
+  void MarkStockFlows(SymbolNameSpace *sns);  // mark the variableType of inflows/outflows
+  // Replace each inflow/outflow drawn in a view other than this stock's with a
+  // "<stock> flow" proxy (PreventFlowGhost). Only XMILE's module decomposition
+  // needs this -- one <model> per view, and a stock's flows must live in its
+  // own <model> -- so it is not part of the post-parse pipeline: the pipeline
+  // cannot know the output target, and neither the .mdl writer nor the sector
+  // form has any use for the proxies. XMILEGenerator::Print invokes it on the
+  // module path only, right before emitting. Idempotent: a proxy sits in this
+  // stock's view, so a second pass finds nothing to replace. Each replaced
+  // flow is appended to `displaced` so the caller can settle its type once
+  // every stock has been processed (UndoFlowPromotion).
+  void LocalizeCrossViewFlows(SymbolNameSpace *sns, std::vector<Variable *> &displaced);
+  // Return a variable MarkStockFlows promoted to FLOW to the type MarkTypes
+  // gave it. For a flow no stock lists any more (its stocks all took proxies),
+  // FLOW would emit an unattached <flow> with invented pts where the modeler
+  // drew a plain aux; this is the typing upstream's module output has.
+  void UndoFlowPromotion();
   XMILE_Type VariableType() {
     return mVariableType;
   }
@@ -323,6 +340,20 @@ public:
   }
   bool SynthesizedNetFlow() const {
     return _synthesizedNetFlow;
+  }
+  // Provenance for the "<stock> flow" proxy PreventFlowGhost mints when a
+  // stock's flow is drawn in another view: XMILE's module decomposition needs a
+  // flow in the stock's own module, so the proxy stands in for the modeler's
+  // flow there. The .mdl format has no such constraint -- the stock's INTEG
+  // still names the modeler's flow directly -- so the .mdl writer drops the
+  // proxy. As with the net-flow carrier, the name is no test: "<stock> flow" is
+  // a name a modeler can use, and the Symbol constructor's "_<n>" uniquifier
+  // fires precisely when one did. Never serialized.
+  void MarkSynthesizedFlowProxy() {
+    _synthesizedFlowProxy = true;
+  }
+  bool SynthesizedFlowProxy() const {
+    return _synthesizedFlowProxy;
   }
   void MarkUsesMemory() {
     bUsesMemory = true;
@@ -367,6 +398,9 @@ public:
   }
   // virtual
 private:
+  // The non-stock arm of MarkTypes: FLOW if drawn attached to a valve, else
+  // DELAYAUX or AUX by whether the equation uses memory.
+  void AssignNonStockType();
   std::string _comment;
   std::string _units;
   std::vector<Variable *> mInflows;  // only ued for stocks - should push to VariableConent
@@ -380,6 +414,7 @@ private:
   bool _hasUpstream;
   bool _hasDownstream;
   bool _synthesizedNetFlow;
+  bool _synthesizedFlowProxy;
   bool bAsFlow;
   bool bUsesMemory;
 };

@@ -693,7 +693,7 @@ void MDLGenerator::GenerateMacros(std::string &out) {
     for (Variable *v : body) {
       if (v->VariableType() == XMILE_Type_ARRAY_ELM)
         continue;
-      if (synthFlows.count(v))
+      if (synthFlows.count(v) || v->SynthesizedFlowProxy())
         continue;
       GenerateVariableEntry(out, v);
     }
@@ -715,12 +715,15 @@ void MDLGenerator::GenerateEquations(std::string &out) {
 
   // A variable is emitted in the main equation section unless it is suppressed
   // (Unwanted), an array element (emitted through its parent), a synthetic net
-  // flow (inlined into its stock's INTEG), or a control variable (emitted only
-  // by GenerateControl). Control vars are NOT Unwanted on the .mdl path, so the
+  // flow (inlined into its stock's INTEG), a cross-view flow proxy (an XMILE
+  // module artifact; the stock's INTEG still names the modeler's flow, so
+  // emitting the proxy would add a variable the source never had and make the
+  // re-parse mint another one), or a control variable (emitted only by
+  // GenerateControl). Control vars are NOT Unwanted on the .mdl path, so the
   // explicit IsControlVar check is required in addition to the others.
   auto emittable = [&](Variable *v) {
     return !v->Unwanted() && v->VariableType() != XMILE_Type_ARRAY_ELM && !IsControlVar(v->GetName()) &&
-           !synthFlows.count(v);
+           !synthFlows.count(v) && !v->SynthesizedFlowProxy();
   };
 
   // Index every variable's owning group so an ungrouped variable can be

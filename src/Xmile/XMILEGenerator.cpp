@@ -120,8 +120,14 @@ std::string XMILEGenerator::Print(bool is_compact, std::vector<std::string> &err
     tinyxml2::XMLElement *model = doc.NewElement("model");
     this->generateModelAsSectors(model, errs, NULL, true);
     root->InsertEndChild(model);
-  } else
+  } else {
+    // One <model> per view: a stock's flows have to be defined in the stock's
+    // own <model>, so a flow the modeler drew in another view is stood in for
+    // by a local proxy. Only this emission form needs that, so it is done here
+    // rather than in the post-parse pipeline.
+    _model->LocalizeCrossViewFlows();
     this->generateModelAsModules(root, errs, NULL);
+  }
 
   // macros are presented as separate models
   for (MacroFunction *mf : _model->MacroFunctions()) {

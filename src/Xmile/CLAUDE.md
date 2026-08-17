@@ -1,6 +1,6 @@
 # Xmile reader + writer
 
-Last verified: 2026-07-26
+Last verified: 2026-08-17
 
 ## Purpose
 Both directions of the XMILE side of xmutil live here. The writer
@@ -107,6 +107,24 @@ direction.
   the `.mdl` corpus -- so it is its own piece of work. Regression tests:
   `test/xmile/SingleModelNormalizationTest.cpp`, which also pins that
   `convert_mdl_to_xmile` still decomposes.
+- **Cross-view flow proxies are made on the module path only, at emission
+  time.** One `<model>` per view means a stock's flows must be defined in the
+  stock's own `<model>`, so for each inflow/outflow drawn in another view the
+  module path stands in a local `"<stock> flow" = <the modeler's flow>` proxy
+  (`Variable::PreventFlowGhost`, from upstream). `XMILEGenerator::Print` runs
+  `Model::LocalizeCrossViewFlows` right before `generateModelAsModules`, NOT in
+  the post-parse pipeline: the pipeline cannot know the output target, and the
+  proxies are wrong everywhere else -- in the sector form they are pointless
+  structure that also breaks the XMILE -> XMILE fixpoint (a flow the sketch does
+  not place has no view, so it counted as "another view"), and in `.mdl` output
+  they are variables the source never had, minted again on every re-read. A
+  displaced flow that no stock lists any more gets the type `MarkTypes` gave it
+  back (`UndoFlowPromotion`; a plain-aux drawing emits as `<aux>`, not as an
+  unattached `<flow>` with invented `pts`), decided after every stock is
+  processed so a flow another stock still lists in its own view stays a flow.
+  Proxies carry the `Variable::SynthesizedFlowProxy` provenance flag, which the
+  `.mdl` writer uses to leave them out should a model be printed both ways.
+  Regression tests: `test/mdl/CrossViewFlowTest.cpp`.
 - **`Model::GetVariables` sorts by name, at the source rather than per
   writer.** The namespace hash table's bucket order records insertion history,
   and it reaches emitted output through `generateModelAsSectors` /

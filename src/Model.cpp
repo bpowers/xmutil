@@ -1,6 +1,7 @@
 #include "Model.h"
 
 #include <algorithm>
+#include <unordered_set>
 #include <vector>
 
 #include "Mdl/MDLGenerator.h"
@@ -555,7 +556,7 @@ bool Model::MarkVariableTypes(SymbolNameSpace *ns) {
     }
     // repeat this for flows after all stocks marked
     for (Variable *var : vars) {
-      var->MarkStockFlows(ns, this->AsSectors());  // may change number of entries so can't be in above loop
+      var->MarkStockFlows(ns);  // may change number of entries so can't be in above loop
     }
     // don't do this - we have broken the allocation setup mSymbolNameSpace.ConfirmAllAllocations();
   } catch (...) {
@@ -684,6 +685,32 @@ void Model::AttachStragglers() {
   // now everything is defined (and only defined once) - we need to make sure there are no missing connectors
   for (View *view : vViews) {
     view->CheckLinksIn();
+  }
+}
+
+void Model::LocalizeCrossViewFlows() {
+  // Snapshot first: PreventFlowGhost registers new symbols, and GetVariables
+  // walks the namespace's hash table.
+  std::vector<Variable *> vars = GetVariables(nullptr);
+  std::vector<Variable *> displaced;
+  for (Variable *var : vars)
+    var->LocalizeCrossViewFlows(&mSymbolNameSpace, displaced);
+  if (displaced.empty())
+    return;
+  // A displaced flow may still be a same-view flow of some other stock, in
+  // which case FLOW is its right type; only one no stock lists any more gets
+  // its pre-promotion type back. Decided after every stock has been processed
+  // so the answer does not depend on stock order.
+  std::unordered_set<Variable *> still_listed;
+  for (Variable *var : vars) {
+    if (var->VariableType() != XMILE_Type_STOCK)
+      continue;
+    still_listed.insert(var->Inflows().begin(), var->Inflows().end());
+    still_listed.insert(var->Outflows().begin(), var->Outflows().end());
+  }
+  for (Variable *var : displaced) {
+    if (!still_listed.count(var))
+      var->UndoFlowPromotion();
   }
 }
 

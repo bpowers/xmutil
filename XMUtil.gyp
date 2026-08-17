@@ -144,6 +144,7 @@
             './test/mdl/CorpusRoundTripTest.cpp',
             './test/mdl/CEntryTest.cpp',
             './test/mdl/DynamoToMdlTest.cpp',
+            './test/mdl/CrossViewFlowTest.cpp',
             './test/xmile/RoundTrip.cpp',
             './test/xmile/BasicSmokeTest.cpp',
             './test/xmile/XmileFunctionsTest.cpp',

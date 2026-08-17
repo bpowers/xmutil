@@ -126,6 +126,10 @@ public:
   void CheckGhostOwners();
   void AttachStragglers();  // try to get diagramatic stuff right
   void MakeViewNamesUnique();
+  // Give every stock a flow in its own view; see Variable::LocalizeCrossViewFlows.
+  // Main namespace only: macros have no views. Called by XMILEGenerator::Print
+  // on the module path, not from the post-parse pipeline.
+  void LocalizeCrossViewFlows();
   // Serializes through XMILEGenerator. Emits the module decomposition (one
   // <model> per group or per view) only for a model that did NOT come from
   // XMILE; see bFromXmile.

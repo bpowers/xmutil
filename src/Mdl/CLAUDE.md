@@ -1,6 +1,6 @@
 # Mdl writer
 
-Last verified: 2026-07-26
+Last verified: 2026-08-17
 
 ## Purpose
 Serializes an in-memory `Model` back to Vensim `.mdl` text, so a model parsed
@@ -165,7 +165,11 @@ the inverse of `src/Vensim/` reading; it is a sibling to the XMILE writer in
   legally use that name, and matching on it deleted the modeler's flow together
   with its units, documentation, group and sketch element. The flag is
   deliberately not serialized: re-reading an emitted `.mdl` re-synthesizes and
-  re-marks, which is what makes the inlining round-trip.
+  re-marks, which is what makes the inlining round-trip. The XMILE module path's
+  cross-view flow proxies (`Variable::SynthesizedFlowProxy`, see
+  `src/Xmile/CLAUDE.md`) are likewise left out of the equation section: the
+  stock's `INTEG` still names the modeler's flow, so nothing needs inlining, and
+  emitting a proxy would add a variable the source never had.
 - A sketch record whose name does not resolve to a `Variable` leaves
   `VensimVariableElement::_variable` NULL and keeps no copy of the name, so there
   is nothing to re-emit. That is one input to `SuppressedSketchSlots` (Key
