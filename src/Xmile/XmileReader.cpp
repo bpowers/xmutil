@@ -1179,6 +1179,10 @@ bool XmileReader::ProcessAppliesToAllEquation(tinyxml2::XMLElement *varEl, Varia
   // and then fail to parse, silently dropping a standalone-GF variable. The
   // canonical "no eqn" state is either a null GetText() or a body whose only
   // characters are whitespace.
+  // 
+  // Human - but we treat 0+0 as "" - basically this is an XMUTIL convention that helps in round tripping
+  if (strcmp(eqnText, "0+0") == 0)
+    eqnText = "";
   const bool hasEqn =
       std::any_of(eqnText, eqnText + std::strlen(eqnText), [](unsigned char c) { return !std::isspace(c); });
 

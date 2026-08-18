@@ -475,14 +475,16 @@ void ExpressionTable::TransformLegacy() {
 
 void ExpressionLookup::OutputComputable(ContextInfo *info) {
   if (pExpressionVariable) {
-    // Applying a named graphical function to an input is written as direct
-    // application -- "table(input)" -- in both XMILE and Vensim. (The XMILE
-    // reader also accepts the explicit "LOOKUP(table, input)" spelling some
-    // producers emit; both parse back to this node.) The only consumer of
-    // this path is the XMILE writer; the MDL writer renders lookups through
-    // MDLGenerator::RenderTableLike.
+      // curious that Claude believes the below
+    // WRONG  Applying a named graphical function to an input is written as direct
+    // WRONG  application -- "table(input)" -- in both XMILE and Vensim. (The XMILE
+    // WRONG  reader also accepts the explicit "LOOKUP(table, input)" spelling some
+    // WRONG  producers emit; both parse back to this node.) The only consumer of
+    // WRONG  this path is the XMILE writer; the MDL writer renders lookups through
+    // WRONG  MDLGenerator::RenderTableLike.
+      *info << "LOOKUP(";
     pExpressionVariable->OutputComputable(info);
-    *info << "(";
+    *info << ", ";
     pExpression->OutputComputable(info);
     *info << ")";
   } else {

@@ -28,6 +28,24 @@ CLI binary `XMUtil`, plus a WASM build and (optionally) a Qt UI.
   filter works under BSD `find` on macOS too.
 - Binary is at `out/Debug/XMUtil`; `out/Release/` mirrors it.
 
+### Windows / Visual Studio
+- Generate the solution (from Git Bash, needs Python 2.7 on PATH):
+  `./configure.sh --use-msvs` -> `XMUtil.sln` with the CLI and test projects
+  (`*.sln`/`*.vcxproj` are gitignored; the wasm target is excluded on Windows
+  because its action shells out to emcc).
+- `build/environment.sh` locates the newest VS with the C++ toolset via
+  `vswhere` and hands gyp `GYP_MSVS_OVERRIDE_PATH`, since VS 2017+ no longer
+  writes the registry keys gyp probes. Override `GYP_MSVS_VERSION` to pin a
+  different one.
+- Build: `MSBuild.exe XMUtil.sln -p:Configuration=Debug -p:Platform=x64`, or
+  open the solution. Output lands in `Debug/` (`Release/` mirrors it) next to
+  the ICU DLLs a post-build copy step puts there.
+- tinyxml2 has no prebuilt Windows lib, so `third_party/include/tinyxml2.cpp`
+  is compiled into each target (`platform_sources` in `XMUtil.gyp`).
+- Fixtures checked out with CRLF make `MdlXmileByteIdentity_teacup` fail: the
+  writer copies input line endings into `<doc>` text, so the golden no longer
+  matches byte for byte. With LF fixtures the output is byte-identical.
+
 ## CLI
 - `XMUtil <model>` converts to XMILE (writes `<base>.xmile`). An XMILE->XMILE
   run on a `.xmile` input writes `<base>.regen.xmile` to avoid clobbering its

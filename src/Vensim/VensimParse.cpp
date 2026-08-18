@@ -541,7 +541,12 @@ bool VensimParse::FindNextEq(bool want_comment) {
       this->pActiveVar->SetComment(comment);
   }
   // just zip through to the first | then whatever follows is it
-  return mVensimLex.FindToken("|");
+  bool rval =  mVensimLex.FindToken("|");
+  if (rval) {  // if eof file then give up
+    if (mVensimLex.EndOfFile())
+      return false;
+  }
+  return rval;
 }
 
 LeftHandSide *VensimParse::AddExceptInterp(ExpressionVariable *var, SymbolListList *except, int interpmode) {

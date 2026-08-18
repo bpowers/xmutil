@@ -500,9 +500,13 @@ void XMILEGenerator::generateEquation(Variable *var, tinyxml2::XMLDocument *doc,
     // "0+0" <eqn> body would make the re-parse misread the variable as a
     // WITH LOOKUP form. Suppress <eqn> here; the <gf> emission below carries
     // the full meaning.
-    bool standalone_gf = eqn->GetExpression() && eqn->GetExpression()->GetType() == EXPTYPE_Table;
+
+    // the XMILE Spec suggests a <gf> with no equation is okay, but in practice Stella would take
+    // it and turn the equation to Time - so we keep the 0+0 inserted upstream as the equation
+    // and the treat that as no equation on reading in xmile
+    // bool standalone_gf = eqn->GetExpression() && eqn->GetExpression()->GetType() == EXPTYPE_Table;
     if (eq_count <= 1 || rhs.size() < 42 || rhs.substr(28, 13) != "A FUNCTION OF") {
-      if (!standalone_gf) {
+      /* if (!standalone_gf) */ {
         tinyxml2::XMLElement *xeqn = doc->NewElement("eqn");
         xelement->InsertEndChild(xeqn);
         if (wrap_init)

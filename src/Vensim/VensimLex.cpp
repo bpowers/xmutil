@@ -589,6 +589,19 @@ bool VensimLex::FindToken(const char *tok) {
   return false;
 }
 
+bool VensimLex::EndOfFile() {
+  while (true) {
+    char c = GetNextChar(false);
+    if (c == 0)
+      break;
+    if (c != '\r' && c != '\n' && c != '\t' && c != ' ') {
+      PushBack(c, false);
+      return false;
+    }
+  }
+  return true;
+}
+
 bool VensimLex::BufferReadLine(char *buf, size_t buflen) {
   const char *tv = sBuffer.c_str();
   while (buflen > 0 && *tv) {

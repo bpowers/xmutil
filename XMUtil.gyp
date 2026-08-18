@@ -106,6 +106,7 @@
             './src/OutputPath.h',
             './src/OutputPath.cpp',
             '<@(common_sources)',
+            '<@(platform_sources)',
         ],
         'defines' : [
 
@@ -122,6 +123,7 @@
         'mac_bundle': 0,
         'sources': [
             '<@(common_sources)',
+            '<@(platform_sources)',
             # Main.cpp is replaced by the harness, so the CLI-only sources it
             # depends on have to be listed here too.
             './src/OutputPath.h',
@@ -181,33 +183,53 @@
         'include_dirs': [
             'src',
         ],
-    }, {
-        'target_name': 'XMUtil_wasm',
-        'type': 'none',
-        'dependencies': [],
-        'sources': [
-            './src/emscripten_wrapper.cpp',
-            '<@(common_sources)',
-        ],
-        'actions': [{
-            'action_name': 'build_wasm',
-            'inputs': [
-                '<@(_sources)',
-                '<(cwd)/build_wasm_action.sh',
-            ],
-            'outputs': [
-                '<(PRODUCT_DIR)/xmutil.js',
-                '<(PRODUCT_DIR)/xmutil.wasm',
-            ],
-            'action': [
-                'bash',
-                '<(cwd)/build_wasm_action.sh',
-                '<(PRODUCT_DIR)',
-                '<@(_sources)',
-            ],
-        }],
     }],
+    'conditions': [
+        # The wasm target drives emcc through a shell script, so it only exists
+        # on the platforms that can run it -- keeping it out of the Visual
+        # Studio solution leaves the CLI (and its tests) as the only projects.
+        ['OS!="win"', {
+            'targets': [{
+                'target_name': 'XMUtil_wasm',
+                'type': 'none',
+                'dependencies': [],
+                'sources': [
+                    './src/emscripten_wrapper.cpp',
+                    '<@(common_sources)',
+                ],
+                'actions': [{
+                    'action_name': 'build_wasm',
+                    'inputs': [
+                        '<@(_sources)',
+                        '<(cwd)/build_wasm_action.sh',
+                    ],
+                    'outputs': [
+                        '<(PRODUCT_DIR)/xmutil.js',
+                        '<(PRODUCT_DIR)/xmutil.wasm',
+                    ],
+                    'action': [
+                        'bash',
+                        '<(cwd)/build_wasm_action.sh',
+                        '<(PRODUCT_DIR)',
+                        '<@(_sources)',
+                    ],
+                }],
+            }],
+        }],
+    ],
     'variables': {
+        'conditions': [
+            # Linux links the system tinyxml2 and macOS has a prebuilt static
+            # lib, but nothing provisions a tinyxml2.lib for Windows, so there
+            # the amalgamated source next to the header is compiled in.
+            ['OS=="win"', {
+                'platform_sources': [
+                    './third_party/include/tinyxml2.cpp',
+                ],
+            }, {
+                'platform_sources': [],
+            }],
+        ],
         'common_sources': [
             './src/XMUtil.h',
             './src/XMUtil.cpp',
